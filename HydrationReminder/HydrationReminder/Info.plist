@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Health Reminders</string>
+	<string>Plany</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>This app needs notification access to remind you to eat and drink water at regular intervals for your health.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access to record voice logs for tracking your food intake and symptoms.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

@@ -18,6 +18,10 @@
 		A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075AE2E52385200D2367C /* VoiceLogRow.swift */; };
 		A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075AF2E52385200D2367C /* VoiceLogsView.swift */; };
 		A35075B32E52385200D2367C /* VoiceLogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075AD2E52385200D2367C /* VoiceLogManager.swift */; };
+		A35075B82E5267C600D2367C /* LogEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B52E5267C600D2367C /* LogEntryRow.swift */; };
+		A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B62E5267C600D2367C /* LogLedgerView.swift */; };
+		A35075BA2E5267C600D2367C /* LogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B42E5267C600D2367C /* LogEntry.swift */; };
+		A35075BB2E5267C600D2367C /* LogsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B72E5267C600D2367C /* LogsManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +38,10 @@
 		A35075AD2E52385200D2367C /* VoiceLogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceLogManager.swift; sourceTree = "<group>"; };
 		A35075AE2E52385200D2367C /* VoiceLogRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceLogRow.swift; sourceTree = "<group>"; };
 		A35075AF2E52385200D2367C /* VoiceLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceLogsView.swift; sourceTree = "<group>"; };
+		A35075B42E5267C600D2367C /* LogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntry.swift; sourceTree = "<group>"; };
+		A35075B52E5267C600D2367C /* LogEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntryRow.swift; sourceTree = "<group>"; };
+		A35075B62E5267C600D2367C /* LogLedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogLedgerView.swift; sourceTree = "<group>"; };
+		A35075B72E5267C600D2367C /* LogsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +74,10 @@
 		A0FFFFFF295B0A6700000001 /* HydrationReminder */ = {
 			isa = PBXGroup;
 			children = (
+				A35075B42E5267C600D2367C /* LogEntry.swift */,
+				A35075B52E5267C600D2367C /* LogEntryRow.swift */,
+				A35075B62E5267C600D2367C /* LogLedgerView.swift */,
+				A35075B72E5267C600D2367C /* LogsManager.swift */,
 				A35075AC2E52385200D2367C /* VoiceLog.swift */,
 				A35075AD2E52385200D2367C /* VoiceLogManager.swift */,
 				A35075AE2E52385200D2367C /* VoiceLogRow.swift */,
@@ -167,6 +179,10 @@
 				A35075B02E52385200D2367C /* VoiceLog.swift in Sources */,
 				A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */,
 				A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */,
+				A35075B82E5267C600D2367C /* LogEntryRow.swift in Sources */,
+				A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */,
+				A35075BA2E5267C600D2367C /* LogEntry.swift in Sources */,
+				A35075BB2E5267C600D2367C /* LogsManager.swift in Sources */,
 				A35075B32E52385200D2367C /* VoiceLogManager.swift in Sources */,
 				A35075AB2E52383A00D2367C /* MainTabView.swift in Sources */,
 			);

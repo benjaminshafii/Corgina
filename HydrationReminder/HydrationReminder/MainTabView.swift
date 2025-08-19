@@ -5,15 +5,16 @@ struct MainTabView: View {
     @StateObject private var logsManager: LogsManager
     
     init() {
-        let notificationManager = NotificationManager()
-        _notificationManager = StateObject(wrappedValue: notificationManager)
-        _logsManager = StateObject(wrappedValue: LogsManager(notificationManager: notificationManager))
+        let nm = NotificationManager()
+        _notificationManager = StateObject(wrappedValue: nm)
+        _logsManager = StateObject(wrappedValue: LogsManager(notificationManager: nm))
     }
     
     var body: some View {
         TabView {
-            ContentView(logsManager: logsManager)
+            ContentView()
                 .environmentObject(notificationManager)
+                .environmentObject(logsManager)
                 .tabItem {
                     Label("Reminders", systemImage: "bell.fill")
                 }

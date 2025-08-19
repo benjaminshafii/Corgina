@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var notificationManager: NotificationManager
-    @ObservedObject var logsManager: LogsManager
+    @EnvironmentObject var logsManager: LogsManager
     @State private var showingAlert = false
     @State private var alertMessage = ""
     @State private var showingSettings = false
@@ -23,43 +23,13 @@ struct ContentView: View {
             return "\(hours)h \(minutes)m ago"
         } else {
             return "\(minutes)m ago"
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Puke Log Button - Emergency Action
-                        Button(action: {
-                            logsManager.logPuke(
-                                severity: 3,
-                                notes: "Logged from main screen",
-                                relatedToLastMeal: true
-                            )
-                            alertMessage = "Episode logged. Take care of yourself! 💙"
-                            showingAlert = true
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Quick Log: Vomiting")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("Tap to log episode (relates to last meal)")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                
-                                Spacer()
-                            }
-                            .padding()
-                            .background(Color.red)
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    }
-                    
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 25) {
                     VStack(spacing: 20) {
                         Text("Log Your Intake")
                             .font(.title2)
@@ -67,6 +37,7 @@ struct ContentView: View {
                         
                         HStack(spacing: 20) {
                             Button(action: {
+                                // Log to unified LogsManager which also updates NotificationManager
                                 logsManager.logFood(source: .manual)
                                 alertMessage = "Meal logged! Next reminder in \(Int(notificationManager.eatingInterval)) hours"
                                 showingAlert = true
@@ -91,8 +62,9 @@ struct ContentView: View {
                             }
                             
                             Button(action: {
+                                // Log to unified LogsManager which also updates NotificationManager
                                 logsManager.logDrink(source: .manual)
-                                alertMessage = "Water intake logged! Next reminder in \(Int(notificationManager.drinkingInterval)) hours"
+                                alertMessage = "Water logged! Next reminder in \(Int(notificationManager.drinkingInterval)) hour(s)"
                                 showingAlert = true
                             }) {
                                 VStack(spacing: 12) {
@@ -113,6 +85,47 @@ struct ContentView: View {
                                 .background(Color.blue.opacity(0.1))
                                 .cornerRadius(15)
                             }
+                        }
+                        
+                        // Today's Summary
+                        if let summary = logsManager.todaysSummary {
+                            HStack(spacing: 15) {
+                                VStack {
+                                    Text("\(summary.foodCount)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Meals")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                
+                                VStack {
+                                    Text("\(summary.drinkCount)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Drinks")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                
+                                if summary.pukeCount > 0 {
+                                    VStack {
+                                        Text("\(summary.pukeCount)")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.red)
+                                        Text("Episodes")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                         }
                     }
                     .padding(.vertical, 10)
@@ -328,10 +341,6 @@ struct ContentView: View {
             }
             .onAppear {
                 notificationManager.requestPermission()
-                // Clear badge when app opens if user has viewed pending logs
-                if notificationManager.currentBadgeCount > 0 {
-                    UNUserNotificationCenter.current().setBadgeCount(0)
-                }
             }
             .alert("", isPresented: $showingAlert) {
                 if alertMessage.contains("Settings") {
@@ -356,4 +365,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(NotificationManager())
+        .environmentObject(LogsManager(notificationManager: NotificationManager()))
 }

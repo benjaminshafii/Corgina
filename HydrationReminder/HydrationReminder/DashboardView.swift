@@ -7,13 +7,16 @@ struct DashboardView: View {
     @EnvironmentObject var logsManager: LogsManager
     @EnvironmentObject var notificationManager: NotificationManager
     
-    @State private var showingPhotoOptions = false
     @State private var showingCamera = false
-    @State private var showingPhotoPicker = false
-    @State private var selectedItem: PhotosPickerItem?
-    @State private var capturedImage: UIImage?
+    @State private var showingPhotoOptions = false
     @State private var showingVoiceRecording = false
-    @State private var showingFoodLog = false
+    @State private var capturedImage: UIImage?
+    @State private var selectedItem: PhotosPickerItem?
+    @State private var showingAddNotes = false
+    @State private var tempImageData: Data?
+    @State private var notes = ""
+    @State private var selectedMealType: MealType?
+    @State private var selectedDate = Date()
     
     private var todaysDate: String {
         let formatter = DateFormatter()
@@ -72,43 +75,56 @@ struct DashboardView: View {
         .sheet(isPresented: $showingCamera) {
             CameraView(image: $capturedImage)
                 .onDisappear {
-                    if capturedImage != nil {
-                        showingFoodLog = true
+                    if let image = capturedImage,
+                       let data = image.jpegData(compressionQuality: 0.8) {
+                        tempImageData = data
+                        showingAddNotes = true
+                        capturedImage = nil
                     }
                 }
         }
-        .sheet(isPresented: $showingPhotoPicker) {
-            PhotosPicker(
-                selection: $selectedItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                Text("Select Photo")
-            }
-            .onDisappear {
-                if selectedItem != nil {
-                    showingFoodLog = true
+        .sheet(isPresented: $showingAddNotes) {
+            AddNotesView(
+                imageData: $tempImageData,
+                notes: $notes,
+                mealType: $selectedMealType,
+                selectedDate: $selectedDate,
+                onSave: savePhotoLog,
+                onCancel: {
+                    showingAddNotes = false
+                    tempImageData = nil
+                    notes = ""
+                    selectedMealType = nil
+                    selectedDate = Date()
                 }
-            }
+            )
         }
         .sheet(isPresented: $showingVoiceRecording) {
             VoiceRecordingView(manager: voiceLogManager)
-        }
-        .sheet(isPresented: $showingFoodLog) {
-            NavigationView {
-                PhotoFoodLogView()
-            }
         }
         .confirmationDialog("Add Food Photo", isPresented: $showingPhotoOptions) {
             Button("Take Photo") {
                 showingCamera = true
             }
-            Button("Choose from Library") {
-                showingPhotoPicker = true
+            PhotosPicker(
+                selection: $selectedItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Text("Choose from Library")
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("How would you like to add a food photo?")
+        }
+        .onChange(of: selectedItem) { newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                    tempImageData = data
+                    showingAddNotes = true
+                    selectedItem = nil
+                }
+            }
         }
     }
     
@@ -258,69 +274,15 @@ struct DashboardView: View {
             
             HStack(spacing: 12) {
                 Button(action: {
-                    logsManager.logFood(notes: "Breakfast", source: .manual)
-                }) {
-                    Text("Breakfast")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundColor(.orange)
-                        .cornerRadius(8)
-                }
-                
-                Button(action: {
-                    logsManager.logFood(notes: "Lunch", source: .manual)
-                }) {
-                    Text("Lunch")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundColor(.orange)
-                        .cornerRadius(8)
-                }
-                
-                Button(action: {
-                    logsManager.logFood(notes: "Dinner", source: .manual)
-                }) {
-                    Text("Dinner")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundColor(.orange)
-                        .cornerRadius(8)
-                }
-                
-                Button(action: {
-                    logsManager.logFood(notes: "Snack", source: .manual)
-                }) {
-                    Text("Snack")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundColor(.orange)
-                        .cornerRadius(8)
-                }
-            }
-            
-            HStack(spacing: 12) {
-                Button(action: {
                     showingPhotoOptions = true
                 }) {
                     HStack {
                         Image(systemName: "camera.fill")
-                        Text("Take Photo")
+                        Text("Add Photo")
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.purple)
+                    .background(Color.orange)
                     .foregroundColor(.white)
                     .cornerRadius(10)
                 }
@@ -338,6 +300,20 @@ struct DashboardView: View {
                     .foregroundColor(.white)
                     .cornerRadius(10)
                 }
+            }
+            
+            Button(action: {
+                logsManager.logFood(notes: "Quick food log", source: .manual)
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Quick Log Meal")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.orange.opacity(0.1))
+                .foregroundColor(.orange)
+                .cornerRadius(10)
             }
         }
         .padding()
@@ -405,6 +381,28 @@ struct DashboardView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func savePhotoLog() {
+        if let data = tempImageData {
+            photoLogManager.addPhotoLog(
+                imageData: data,
+                notes: notes,
+                mealType: selectedMealType,
+                date: selectedDate
+            )
+            
+            logsManager.logFood(
+                notes: notes.isEmpty ? "Photo logged" : notes,
+                source: .manual
+            )
+            
+            showingAddNotes = false
+            tempImageData = nil
+            notes = ""
+            selectedMealType = nil
+            selectedDate = Date()
+        }
     }
 }
 

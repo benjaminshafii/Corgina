@@ -60,15 +60,14 @@ struct DashboardView: View {
                     
                     hydrationCard
                     
-                    quickActionsSection
+                    foodCard
                     
                     recentActivitySection
                 }
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Dashboard")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
         }
         .sheet(isPresented: $showingCamera) {
             CameraView(image: $capturedImage)
@@ -185,47 +184,52 @@ struct DashboardView: View {
     }
     
     private var hydrationCard: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "drop.fill")
-                        .foregroundColor(.blue)
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Hydration")
                         .font(.headline)
+                    Text("\(todaysWaterIntake) glasses today")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading) {
-                        Text("\(todaysWaterIntake)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        Text("Water logs")
+                Spacer()
+                
+                Image(systemName: "drop.fill")
+                    .font(.title)
+                    .foregroundColor(.blue)
+            }
+            
+            HStack(spacing: 12) {
+                ForEach([4, 8, 12, 16], id: \.self) { ounces in
+                    Button(action: {
+                        logsManager.logWater(amount: ounces, unit: "oz", source: .manual)
+                    }) {
+                        Text("\(ounces)oz")
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Divider()
-                        .frame(height: 40)
-                    
-                    VStack(alignment: .leading) {
-                        Text("\(todaysFoodCount)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        Text("Food logs")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(8)
                     }
                 }
             }
             
-            Spacer()
-            
             Button(action: {
                 logsManager.logWater(amount: 8, unit: "oz", source: .manual)
             }) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.blue)
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Quick Add 8oz")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(10)
             }
         }
         .padding()
@@ -234,53 +238,112 @@ struct DashboardView: View {
         .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
     
-    private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Quick Actions")
-                .font(.headline)
-                .padding(.horizontal, 4)
+    private var foodCard: some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Food Intake")
+                        .font(.headline)
+                    Text("\(todaysFoodCount) meals today")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "fork.knife")
+                    .font(.title)
+                    .foregroundColor(.orange)
+            }
             
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                QuickActionButton(
-                    icon: "camera.fill",
-                    title: "Food Photo",
-                    color: .purple,
-                    action: {
-                        showingPhotoOptions = true
-                    }
-                )
+            HStack(spacing: 12) {
+                Button(action: {
+                    logsManager.logFood(notes: "Breakfast", source: .manual)
+                }) {
+                    Text("Breakfast")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                }
                 
-                QuickActionButton(
-                    icon: "mic.fill",
-                    title: "Voice Note",
-                    color: .orange,
-                    action: {
-                        showingVoiceRecording = true
-                    }
-                )
+                Button(action: {
+                    logsManager.logFood(notes: "Lunch", source: .manual)
+                }) {
+                    Text("Lunch")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                }
                 
-                QuickActionButton(
-                    icon: "drop.fill",
-                    title: "Log Water",
-                    color: .blue,
-                    action: {
-                        logsManager.logWater(amount: 8, unit: "oz", source: .manual)
-                    }
-                )
+                Button(action: {
+                    logsManager.logFood(notes: "Dinner", source: .manual)
+                }) {
+                    Text("Dinner")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                }
                 
-                QuickActionButton(
-                    icon: "fork.knife",
-                    title: "Log Food",
-                    color: .green,
-                    action: {
-                        logsManager.logFood(notes: "Meal", source: .manual)
+                Button(action: {
+                    logsManager.logFood(notes: "Snack", source: .manual)
+                }) {
+                    Text("Snack")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                Button(action: {
+                    showingPhotoOptions = true
+                }) {
+                    HStack {
+                        Image(systemName: "camera.fill")
+                        Text("Take Photo")
                     }
-                )
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.purple)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    showingVoiceRecording = true
+                }) {
+                    HStack {
+                        Image(systemName: "mic.fill")
+                        Text("Voice Note")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
             }
         }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
     
     private var recentActivitySection: some View {
@@ -397,35 +460,6 @@ struct MacroView: View {
     }
 }
 
-struct QuickActionButton: View {
-    let icon: String
-    let title: String
-    let color: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(color)
-                    .cornerRadius(12)
-                
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.primary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
 
 struct VoiceRecordingView: View {
     @ObservedObject var manager: VoiceLogManager

@@ -9,15 +9,25 @@ class VoiceLogManager: NSObject, ObservableObject {
     @Published var currentPlayingID: UUID?
     @Published var recordingTime: TimeInterval = 0
     @Published var currentCategory: LogCategory = .food
+    @Published var isProcessingVoice = false
+    @Published var lastTranscription: String?
+    @Published var detectedActions: [VoiceAction] = []
+    @Published var showActionConfirmation = false
     
     private var audioRecorder: AVAudioRecorder?
     private var audioPlayer: AVAudioPlayer?
     private var recordingTimer: Timer?
     private var recordingStartTime: Date?
+    private var currentRecordingURL: URL?
     
     private let userDefaultsKey = "SavedVoiceLogs"
+    private let openAIManager = OpenAIManager.shared
+    private let logsManager: LogsManager
+    private let supplementManager: SupplementManager
     
     override init() {
+        self.logsManager = LogsManager(notificationManager: NotificationManager.shared)
+        self.supplementManager = SupplementManager(notificationManager: NotificationManager.shared)
         super.init()
         loadLogs()
         setupAudioSession()
@@ -87,6 +97,8 @@ class VoiceLogManager: NSObject, ObservableObject {
         
         if let recorder = audioRecorder {
             let fileName = recorder.url.lastPathComponent
+            currentRecordingURL = recorder.url
+            
             let voiceLog = VoiceLog(
                 duration: duration,
                 category: currentCategory,
@@ -95,6 +107,11 @@ class VoiceLogManager: NSObject, ObservableObject {
             
             voiceLogs.insert(voiceLog, at: 0)
             saveLogs()
+            
+            // Process voice for actions if OpenAI API is available
+            if openAIManager.hasAPIKey {
+                processVoiceForActions(audioURL: recorder.url)
+            }
             
             // Post notification that a voice log was created
             NotificationCenter.default.post(
@@ -107,6 +124,97 @@ class VoiceLogManager: NSObject, ObservableObject {
         isRecording = false
         recordingTime = 0
         audioRecorder = nil
+    }
+    
+    private func processVoiceForActions(audioURL: URL) {
+        Task { @MainActor in
+            isProcessingVoice = true
+            
+            do {
+                let audioData = try Data(contentsOf: audioURL)
+                let actions = try await openAIManager.transcribeAndExtractActions(audioData: audioData)
+                
+                self.lastTranscription = openAIManager.lastTranscription
+                self.detectedActions = actions
+                
+                if !actions.isEmpty {
+                    self.showActionConfirmation = true
+                    // Auto-execute high confidence actions
+                    for action in actions where action.confidence > 0.8 {
+                        executeAction(action)
+                    }
+                }
+            } catch {
+                print("Error processing voice: \(error)")
+            }
+            
+            isProcessingVoice = false
+        }
+    }
+    
+    func executeAction(_ action: VoiceAction) {
+        switch action.type {
+        case .logWater:
+            if let amountStr = action.details.amount,
+               let amount = Int(amountStr) {
+                logsManager.logWater(amount: amount, unit: action.details.unit ?? "oz", source: .voice)
+                showToast("Logged \(amount) \(action.details.unit ?? "oz") of water")
+            }
+            
+        case .logFood:
+            if let foodItem = action.details.item {
+                logsManager.logFood(notes: foodItem, source: .voice)
+                showToast("Logged food: \(foodItem)")
+            }
+            
+        case .logVitamin:
+            if let vitaminName = action.details.vitaminName {
+                supplementManager.logIntakeByName(vitaminName)
+                showToast("Logged vitamin: \(vitaminName)")
+            }
+            
+        case .logSymptom:
+            if let symptoms = action.details.symptoms {
+                let severity = parseSeverity(action.details.severity)
+                for symptom in symptoms {
+                    logsManager.logSymptom(notes: symptom, severity: severity, source: .voice)
+                }
+                showToast("Logged symptoms: \(symptoms.joined(separator: ", "))")
+            }
+            
+        case .logPUQE:
+            // Handle PUQE logging
+            if let notes = action.details.notes {
+                NotificationCenter.default.post(
+                    name: Notification.Name("LogPUQEFromVoice"),
+                    object: nil,
+                    userInfo: ["notes": notes]
+                )
+                showToast("PUQE score recorded")
+            }
+            
+        case .unknown:
+            print("Unknown action type")
+        }
+    }
+    
+    private func parseSeverity(_ severityStr: String?) -> Int {
+        guard let severity = severityStr?.lowercased() else { return 3 }
+        
+        switch severity {
+        case "mild", "light", "slight": return 2
+        case "moderate", "medium": return 3
+        case "severe", "heavy", "bad": return 4
+        default: return 3
+        }
+    }
+    
+    private func showToast(_ message: String) {
+        NotificationCenter.default.post(
+            name: Notification.Name("ShowToast"),
+            object: nil,
+            userInfo: ["message": message]
+        )
     }
     
     func playAudio(log: VoiceLog) {

@@ -41,6 +41,11 @@ struct MainTabView: View {
                 .tabItem {
                     Label("PUQE", systemImage: "chart.line.uptrend.xyaxis")
                 }
+            
+            SupplementTrackerView()
+                .tabItem {
+                    Label("Vitamins", systemImage: "pills.fill")
+                }
         }
     }
 }

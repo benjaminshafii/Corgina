@@ -3,11 +3,15 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var notificationManager: NotificationManager
     @StateObject private var openAIManager = OpenAIManager.shared
+    @StateObject private var cloudBackupManager = CloudBackupManager.shared
     @State private var showingAlert = false
     @State private var alertMessage = ""
     @State private var showingResetConfirmation = false
     @State private var apiKeyInput = ""
     @State private var showAPIKey = false
+    @State private var showingRestoreConfirmation = false
+    @State private var showingExportSheet = false
+    @State private var exportURL: URL?
     @AppStorage("openAIKey") private var savedAPIKey: String = ""
     @Environment(\.dismiss) var dismiss
     
@@ -220,6 +224,133 @@ struct SettingsView: View {
                 .padding(.vertical)
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(15)
+                
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("iCloud Backup")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    Text("Automatically backup your data to iCloud")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    Toggle("Enable iCloud Backup", isOn: $cloudBackupManager.isBackupEnabled)
+                        .padding(.horizontal)
+                        .onChange(of: cloudBackupManager.isBackupEnabled) { newValue in
+                            cloudBackupManager.enableBackup(newValue)
+                        }
+                    
+                    if cloudBackupManager.isBackupEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let lastBackup = cloudBackupManager.lastBackupDate {
+                                Label("Last backup: \(lastBackup.formatted(date: .abbreviated, time: .shortened))", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    cloudBackupManager.performBackup()
+                                }) {
+                                    HStack {
+                                        if cloudBackupManager.backupStatus == .backing {
+                                            ProgressView()
+                                                .scaleEffect(0.8)
+                                        } else {
+                                            Image(systemName: "arrow.up.circle.fill")
+                                        }
+                                        Text("Backup Now")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                                }
+                                .disabled(cloudBackupManager.backupStatus == .backing)
+                                
+                                Button(action: {
+                                    showingRestoreConfirmation = true
+                                }) {
+                                    HStack {
+                                        if cloudBackupManager.backupStatus == .restoring {
+                                            ProgressView()
+                                                .scaleEffect(0.8)
+                                        } else {
+                                            Image(systemName: "arrow.down.circle.fill")
+                                        }
+                                        Text("Restore")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(Color.green)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                                }
+                                .disabled(cloudBackupManager.backupStatus == .restoring)
+                            }
+                            
+                            if cloudBackupManager.backupStatus == .backing || cloudBackupManager.backupStatus == .restoring {
+                                ProgressView(value: cloudBackupManager.backupProgress)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                            }
+                            
+                            if let error = cloudBackupManager.errorMessage {
+                                Label(error, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    Button(action: {
+                        do {
+                            exportURL = try cloudBackupManager.exportToFile()
+                            showingExportSheet = true
+                        } catch {
+                            alertMessage = "Export failed: \(error.localizedDescription)"
+                            showingAlert = true
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Data")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.purple)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(15)
+                .confirmationDialog("Restore from iCloud", isPresented: $showingRestoreConfirmation) {
+                    Button("Restore", role: .destructive) {
+                        Task {
+                            do {
+                                try await cloudBackupManager.performRestore()
+                                alertMessage = "Data restored successfully!"
+                                showingAlert = true
+                            } catch {
+                                alertMessage = "Restore failed: \(error.localizedDescription)"
+                                showingAlert = true
+                            }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This will replace all current data with your iCloud backup. This action cannot be undone.")
+                }
+                .sheet(isPresented: $showingExportSheet) {
+                    if let url = exportURL {
+                        ShareSheet(items: [url])
+                    }
+                }
                 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Daily Reset")

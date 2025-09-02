@@ -4,6 +4,8 @@ import PhotosUI
 struct DashboardView: View {
     @StateObject private var photoLogManager = PhotoFoodLogManager()
     @StateObject private var voiceLogManager = VoiceLogManager()
+    @StateObject private var supplementManager = SupplementManager()
+    @StateObject private var puqeManager = PUQEManager()
     @EnvironmentObject var logsManager: LogsManager
     @EnvironmentObject var notificationManager: NotificationManager
     
@@ -60,6 +62,14 @@ struct DashboardView: View {
                     headerSection
                     
                     nutritionSummaryCard
+                    
+                    if let summary = supplementManager.todaysSummary {
+                        vitaminCard(summary)
+                    }
+                    
+                    if let todaysScore = puqeManager.todaysScore {
+                        puqeScoreCard(todaysScore)
+                    }
                     
                     hydrationCard
                     
@@ -245,6 +255,109 @@ struct DashboardView: View {
                 .padding()
                 .background(Color.blue)
                 .foregroundColor(.white)
+                .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    private func vitaminCard(_ summary: SupplementManager.SupplementSummary) -> some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Vitamins & Supplements")
+                        .font(.headline)
+                    Text("\(summary.takenToday)/\(summary.totalSupplements) taken today")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                CircularProgressView(
+                    progress: Double(summary.takenToday) / Double(max(summary.totalSupplements, 1)),
+                    lineWidth: 4
+                )
+                .frame(width: 40, height: 40)
+            }
+            
+            if summary.missedToday > 0 {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    Text("\(summary.missedToday) still needed")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+            }
+            
+            NavigationLink(destination: SupplementTrackerView()) {
+                HStack {
+                    Image(systemName: "pills.fill")
+                    Text("Manage Supplements")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.purple)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    private func puqeScoreCard(_ score: PUQEScore) -> some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("PUQE Score")
+                        .font(.headline)
+                    HStack(spacing: 4) {
+                        Text("\(score.totalScore)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(score.severity.color)
+                        Text("(\(score.severity.rawValue))")
+                            .font(.caption)
+                            .foregroundColor(score.severity.color)
+                    }
+                }
+                
+                Spacer()
+                
+                if score.severity == .moderate || score.severity == .severe {
+                    NavigationLink(destination: PUQEFoodSuggestionsView(puqeScore: score)) {
+                        HStack {
+                            Image(systemName: "lightbulb.fill")
+                            Text("Get Suggestions")
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(15)
+                    }
+                }
+            }
+            
+            NavigationLink(destination: PUQEScoreView()) {
+                HStack {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                    Text("Update PUQE Score")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(score.severity.color.opacity(0.2))
+                .foregroundColor(score.severity.color)
                 .cornerRadius(10)
             }
         }

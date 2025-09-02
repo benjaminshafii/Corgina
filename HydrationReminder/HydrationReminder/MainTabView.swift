@@ -12,6 +12,13 @@ struct MainTabView: View {
     
     var body: some View {
         TabView {
+            DashboardView()
+                .environmentObject(notificationManager)
+                .environmentObject(logsManager)
+                .tabItem {
+                    Label("Dashboard", systemImage: "house.fill")
+                }
+            
             ContentView()
                 .environmentObject(notificationManager)
                 .environmentObject(logsManager)
@@ -19,15 +26,20 @@ struct MainTabView: View {
                     Label("Reminders", systemImage: "bell.fill")
                 }
             
+            PhotoFoodLogView()
+                .environmentObject(logsManager)
+                .tabItem {
+                    Label("Food", systemImage: "camera.fill")
+                }
+            
             LogLedgerView(logsManager: logsManager)
                 .tabItem {
                     Label("Logs", systemImage: "list.clipboard")
                 }
             
-            VoiceLogsView()
-                .environmentObject(logsManager)
+            PUQEScoreView()
                 .tabItem {
-                    Label("Voice", systemImage: "mic.fill")
+                    Label("PUQE", systemImage: "chart.line.uptrend.xyaxis")
                 }
         }
     }

@@ -30,6 +30,22 @@ class LogsManager: ObservableObject {
         }
     }
     
+    func logWater(amount: Int? = nil, unit: String? = nil, notes: String? = nil, source: LogSource = .manual) {
+        let amountText = amount != nil && unit != nil ? "\(amount!) \(unit!)" : nil
+        let entry = LogEntry(
+            type: .water,
+            source: source,
+            notes: notes,
+            amount: amountText
+        )
+        addLog(entry)
+        
+        // Also update notification manager if from reminder
+        if source == .reminder || source == .manual {
+            notificationManager.logDrinking()
+        }
+    }
+    
     func logDrink(amount: String? = nil, notes: String? = nil, source: LogSource = .manual) {
         let entry = LogEntry(
             type: .drink,
@@ -137,6 +153,18 @@ class LogsManager: ObservableObject {
     func logsForLastHours(_ hours: Int) -> [LogEntry] {
         let cutoffDate = Date().addingTimeInterval(-Double(hours * 3600))
         return logEntries.filter { $0.date >= cutoffDate }
+    }
+    
+    func getTodayLogs() -> [LogEntry] {
+        return logsForToday()
+    }
+    
+    func getTodayWaterCount() -> Int {
+        return logsForToday().filter { $0.type == .water || $0.type == .drink }.count
+    }
+    
+    func getTodayFoodCount() -> Int {
+        return logsForToday().filter { $0.type == .food }.count
     }
     
     // MARK: - Analytics

@@ -19,13 +19,17 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>This app needs notification access to remind you to eat and drink water at regular intervals for your health.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access to record voice logs for tracking your food intake and symptoms.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to take photos of your meals for food logging.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to select photos of your meals for food logging.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

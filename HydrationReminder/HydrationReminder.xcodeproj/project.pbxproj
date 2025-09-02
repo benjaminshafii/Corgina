@@ -22,6 +22,12 @@
 		A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B62E5267C600D2367C /* LogLedgerView.swift */; };
 		A35075BA2E5267C600D2367C /* LogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B42E5267C600D2367C /* LogEntry.swift */; };
 		A35075BB2E5267C600D2367C /* LogsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075B72E5267C600D2367C /* LogsManager.swift */; };
+		A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */; };
+		A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */; };
+		A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */; };
+		A3C2C1312E66A286005A322F /* PUQEScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12C2E66A286005A322F /* PUQEScore.swift */; };
+		A3C2C1332E66A52B005A322F /* OpenAIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C1322E66A52B005A322F /* OpenAIManager.swift */; };
+		A3C2C1352E66A836005A322F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C1342E66A836005A322F /* DashboardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +48,12 @@
 		A35075B52E5267C600D2367C /* LogEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntryRow.swift; sourceTree = "<group>"; };
 		A35075B62E5267C600D2367C /* LogLedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogLedgerView.swift; sourceTree = "<group>"; };
 		A35075B72E5267C600D2367C /* LogsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsManager.swift; sourceTree = "<group>"; };
+		A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLog.swift; sourceTree = "<group>"; };
+		A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLogView.swift; sourceTree = "<group>"; };
+		A3C2C12C2E66A286005A322F /* PUQEScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUQEScore.swift; sourceTree = "<group>"; };
+		A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUQEScoreView.swift; sourceTree = "<group>"; };
+		A3C2C1322E66A52B005A322F /* OpenAIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIManager.swift; sourceTree = "<group>"; };
+		A3C2C1342E66A836005A322F /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +86,12 @@
 		A0FFFFFF295B0A6700000001 /* HydrationReminder */ = {
 			isa = PBXGroup;
 			children = (
+				A3C2C1342E66A836005A322F /* DashboardView.swift */,
+				A3C2C1322E66A52B005A322F /* OpenAIManager.swift */,
+				A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */,
+				A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */,
+				A3C2C12C2E66A286005A322F /* PUQEScore.swift */,
+				A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */,
 				A35075B42E5267C600D2367C /* LogEntry.swift */,
 				A35075B52E5267C600D2367C /* LogEntryRow.swift */,
 				A35075B62E5267C600D2367C /* LogLedgerView.swift */,
@@ -176,11 +194,17 @@
 				A1000003295B0A6700000001 /* ContentView.swift in Sources */,
 				A1000010295B0A7000000001 /* NotificationManager.swift in Sources */,
 				A1000001295B0A6700000001 /* PlanyApp.swift in Sources */,
+				A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */,
+				A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */,
+				A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */,
+				A3C2C1312E66A286005A322F /* PUQEScore.swift in Sources */,
+				A3C2C1352E66A836005A322F /* DashboardView.swift in Sources */,
 				A35075B02E52385200D2367C /* VoiceLog.swift in Sources */,
 				A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */,
 				A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */,
 				A35075B82E5267C600D2367C /* LogEntryRow.swift in Sources */,
 				A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */,
+				A3C2C1332E66A52B005A322F /* OpenAIManager.swift in Sources */,
 				A35075BA2E5267C600D2367C /* LogEntry.swift in Sources */,
 				A35075BB2E5267C600D2367C /* LogsManager.swift in Sources */,
 				A35075B32E52385200D2367C /* VoiceLogManager.swift in Sources */,

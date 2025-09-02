@@ -2,9 +2,13 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var notificationManager: NotificationManager
+    @StateObject private var openAIManager = OpenAIManager.shared
     @State private var showingAlert = false
     @State private var alertMessage = ""
     @State private var showingResetConfirmation = false
+    @State private var apiKeyInput = ""
+    @State private var showAPIKey = false
+    @AppStorage("openAIKey") private var savedAPIKey: String = ""
     @Environment(\.dismiss) var dismiss
     
     func formatHour(_ hour: Int) -> String {
@@ -20,6 +24,80 @@ struct SettingsView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("AI Food Analysis")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    Text("Add your OpenAI API key to enable AI-powered food analysis")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            if showAPIKey {
+                                TextField("Enter OpenAI API Key", text: $apiKeyInput)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            } else {
+                                SecureField("Enter OpenAI API Key", text: $apiKeyInput)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            }
+                            
+                            Button(action: {
+                                showAPIKey.toggle()
+                            }) {
+                                Image(systemName: showAPIKey ? "eye.slash.fill" : "eye.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        HStack {
+                            if openAIManager.hasAPIKey {
+                                Label("API Key Configured", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            } else {
+                                Label("No API Key Set", systemImage: "xmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                if !apiKeyInput.isEmpty {
+                                    openAIManager.setAPIKey(apiKeyInput)
+                                    alertMessage = "API Key saved successfully!"
+                                    showingAlert = true
+                                    apiKeyInput = ""
+                                }
+                            }) {
+                                Text("Save Key")
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(6)
+                            }
+                            .disabled(apiKeyInput.isEmpty)
+                        }
+                        
+                        Link("Get your API key from OpenAI", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(15)
+                
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Test Notifications")
                         .font(.headline)
@@ -233,10 +311,13 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("Notification", isPresented: $showingAlert) {
+            .alert("Settings", isPresented: $showingAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(alertMessage)
+            }
+            .onAppear {
+                apiKeyInput = savedAPIKey
             }
         }
     }

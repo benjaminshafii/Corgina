@@ -2,6 +2,7 @@ import Foundation
 
 enum LogType: String, Codable, CaseIterable {
     case food = "Food"
+    case water = "Water"
     case drink = "Drink"
     case puke = "Puke"
     case symptom = "Symptom"
@@ -10,7 +11,7 @@ enum LogType: String, Codable, CaseIterable {
         switch self {
         case .food:
             return "fork.knife"
-        case .drink:
+        case .water, .drink:
             return "drop.fill"
         case .puke:
             return "exclamationmark.triangle.fill"
@@ -23,7 +24,7 @@ enum LogType: String, Codable, CaseIterable {
         switch self {
         case .food:
             return "orange"
-        case .drink:
+        case .water, .drink:
             return "blue"
         case .puke:
             return "red"

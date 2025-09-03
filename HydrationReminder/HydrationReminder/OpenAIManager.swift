@@ -188,6 +188,60 @@ class OpenAIManager: ObservableObject {
             throw OpenAIError.invalidResponse
         }
         
+        // Debug logging
+        print("GPT-5 Response: \(cleanedContent)")
+        
+        // Try to parse the JSON response
+        guard let json = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any] else {
+            print("Failed to parse JSON from GPT-5 response")
+            throw OpenAIError.invalidResponse
+        }
+        
+        // Extract actions array
+        guard let actionsArray = json["actions"] as? [[String: Any]] else {
+            print("No actions array found in response")
+            DispatchQueue.main.async {
+                self.detectedActions = []
+            }
+            return []
+        }
+        
+        // Parse each action
+        var actions: [VoiceAction] = []
+        for actionDict in actionsArray {
+            // Extract fields manually for better error handling
+            guard let typeStr = actionDict["type"] as? String,
+                  let type = VoiceAction.ActionType(rawValue: typeStr),
+                  let detailsDict = actionDict["details"] as? [String: Any] else {
+                print("Skipping malformed action: \(actionDict)")
+                continue
+            }
+            
+            let confidence = actionDict["confidence"] as? Double ?? 0.8
+            
+            let details = VoiceAction.ActionDetails(
+                item: detailsDict["item"] as? String,
+                amount: detailsDict["amount"] as? String,
+                unit: detailsDict["unit"] as? String,
+                severity: detailsDict["severity"] as? String,
+                mealType: detailsDict["mealType"] as? String,
+                symptoms: detailsDict["symptoms"] as? [String],
+                vitaminName: detailsDict["vitaminName"] as? String,
+                notes: detailsDict["notes"] as? String
+            )
+            
+            let action = VoiceAction(type: type, details: details, confidence: confidence)
+            actions.append(action)
+        }
+        
+        print("Extracted \(actions.count) actions from GPT-5")
+        
+        DispatchQueue.main.async {
+            self.detectedActions = actions
+        }
+        
+        return actions
+        
         let analysis = try JSONDecoder().decode(FoodAnalysis.self, from: contentData)
         return analysis
     }
@@ -271,41 +325,59 @@ class OpenAIManager: ObservableObject {
         let systemPrompt = """
         You are a pregnancy tracking assistant that extracts structured actions from voice transcripts.
         
-        Identify and extract the following types of actions:
-        1. Water/drink intake (amount and unit)
-        2. Food consumption (what was eaten, meal type)
-        3. Symptoms (nausea, headache, fatigue, etc. with severity)
-        4. Vitamin/supplement intake (name of vitamin)
-        5. PUQE-related symptoms (vomiting, retching, nausea duration)
+        Extract ALL actions mentioned in the transcript. Be very liberal in interpretation - if something sounds like it could be an action, extract it.
         
-        Return a JSON array of actions. Each action should have:
-        - type: "log_water", "log_food", "log_symptom", "log_vitamin", "log_puqe"
-        - details: relevant information for that action
-        - confidence: 0.0 to 1.0 how confident you are in the interpretation
+        Action types to detect:
+        1. Water/drink intake - any mention of drinking water, fluids, beverages
+        2. Food consumption - any mention of eating or food items
+        3. Symptoms - nausea, vomiting, headache, fatigue, dizziness, etc.
+        4. Vitamin/supplement intake - prenatal, iron, vitamin D, DHA, folic acid, etc.
+        5. PUQE symptoms - vomiting, throwing up, retching, severe nausea
         
-        Example response:
-        [
-            {
-                "type": "log_water",
-                "details": {
-                    "amount": "16",
-                    "unit": "oz"
-                },
-                "confidence": 0.95
-            }
-        ]
+        IMPORTANT: Always return a JSON object with "actions" array, even if empty.
+        
+        Response format:
+        {
+            "actions": [
+                {
+                    "type": "log_water",
+                    "details": {
+                        "amount": "16",
+                        "unit": "oz",
+                        "item": "water"
+                    },
+                    "confidence": 0.95
+                }
+            ]
+        }
+        
+        Examples that MUST work:
+        - "I drank 16 ounces of water" → log_water
+        - "drank water" → log_water (default 8 oz)
+        - "had some water" → log_water
+        - "I took my prenatal" → log_vitamin
+        - "took vitamins" → log_vitamin
+        - "feeling nauseous" → log_symptom
+        - "I ate breakfast" → log_food
+        - "had eggs" → log_food
+        """
+        
+        let userPrompt = """
+        The user said: "\(transcript)"
+        
+        What actions should I log? Be very liberal - if it sounds like they did something, log it.
         """
         
         let messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt],
-            ["role": "user", "content": "Extract actions from: \"\(transcript)\""]
+            ["role": "user", "content": userPrompt]
         ]
         
         let requestBody: [String: Any] = [
-            "model": "gpt-5",
+            "model": "gpt-5", // Using GPT-5 as requested
             "messages": messages,
             "max_tokens": 1000,
-            "temperature": 0.2,
+            "temperature": 0.1, // Lower temperature for more consistent parsing
             "response_format": ["type": "json_object"]
         ]
         
@@ -339,30 +411,68 @@ class OpenAIManager: ObservableObject {
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Debug: Print the cleaned content to see what we're getting
+        print("GPT-5 Response: \(cleanedContent)")
+        
         guard let contentData = cleanedContent.data(using: .utf8) else {
+            print("Failed to convert to data: \(cleanedContent)")
             throw OpenAIError.invalidResponse
         }
         
-        if let actionsJson = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any],
-           let actionsArray = actionsJson["actions"] as? [[String: Any]] ?? actionsJson["data"] as? [[String: Any]] {
-            let actions = try actionsArray.compactMap { actionDict -> VoiceAction? in
-                guard let actionData = try? JSONSerialization.data(withJSONObject: actionDict) else { return nil }
-                return try? JSONDecoder().decode(VoiceAction.self, from: actionData)
+        // Try to parse as JSON with "actions" array
+        do {
+            if let actionsJson = try JSONSerialization.jsonObject(with: contentData) as? [String: Any] {
+                print("Parsed JSON: \(actionsJson)")
+                
+                if let actionsArray = actionsJson["actions"] as? [[String: Any]] {
+                    print("Found \(actionsArray.count) actions")
+                    
+                    let actions = actionsArray.compactMap { actionDict -> VoiceAction? in
+                        do {
+                            let actionData = try JSONSerialization.data(withJSONObject: actionDict)
+                            let action = try JSONDecoder().decode(VoiceAction.self, from: actionData)
+                            print("Decoded action: \(action.type.rawValue)")
+                            return action
+                        } catch {
+                            print("Failed to decode action: \(error), dict: \(actionDict)")
+                            return nil
+                        }
+                    }
+                    
+                    DispatchQueue.main.async {
+                        self.detectedActions = actions
+                    }
+                    
+                    return actions
+                }
             }
             
-            DispatchQueue.main.async {
-                self.detectedActions = actions
+            // Try parsing as array directly
+            if let actionsArray = try JSONSerialization.jsonObject(with: contentData) as? [[String: Any]] {
+                print("Parsed as direct array with \(actionsArray.count) actions")
+                
+                let actions = actionsArray.compactMap { actionDict -> VoiceAction? in
+                    do {
+                        let actionData = try JSONSerialization.data(withJSONObject: actionDict)
+                        return try JSONDecoder().decode(VoiceAction.self, from: actionData)
+                    } catch {
+                        print("Failed to decode action from array: \(error)")
+                        return nil
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    self.detectedActions = actions
+                }
+                
+                return actions
             }
-            
-            return actions
-        } else if let singleAction = try? JSONDecoder().decode(VoiceAction.self, from: contentData) {
-            DispatchQueue.main.async {
-                self.detectedActions = [singleAction]
-            }
-            return [singleAction]
-        } else {
-            throw OpenAIError.invalidResponse
+        } catch {
+            print("JSON parsing error: \(error)")
         }
+        
+        print("No actions could be extracted from: \(cleanedContent)")
+        return []
     }
     
     func transcribeAndExtractActions(audioData: Data) async throws -> [VoiceAction] {

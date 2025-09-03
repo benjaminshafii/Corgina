@@ -144,16 +144,21 @@ class VoiceLogManager: NSObject, ObservableObject {
                         let actions = try await openAIManager.extractVoiceActions(from: transcription.text)
                         self.detectedActions = actions
                         
+                        print("Voice: Detected \(actions.count) actions from: '\(transcription.text)'")
+                        
                         if !actions.isEmpty {
                             self.showActionConfirmation = true
-                            // Auto-execute high confidence actions
-                            for action in actions where action.confidence > 0.8 {
+                            // Auto-execute ALL actions (lowered threshold for testing)
+                            for action in actions where action.confidence >= 0.5 {
+                                print("Voice: Executing action: \(action.type) with confidence \(action.confidence)")
                                 executeAction(action)
                             }
+                        } else {
+                            print("Voice: No actions detected from transcript")
                         }
                     } catch {
                         // Even if action extraction fails, we still have the transcription
-                        print("Error extracting actions: \(error)")
+                        print("Voice: Error extracting actions: \(error)")
                         self.detectedActions = []
                     }
                 }
@@ -169,11 +174,13 @@ class VoiceLogManager: NSObject, ObservableObject {
     func executeAction(_ action: VoiceAction) {
         switch action.type {
         case .logWater:
-            if let amountStr = action.details.amount,
-               let amount = Int(amountStr) {
-                logsManager.logWater(amount: amount, unit: action.details.unit ?? "oz", source: .voice)
-                showToast("Logged \(amount) \(action.details.unit ?? "oz") of water")
-            }
+            // Use default of 8 oz if amount not specified
+            let amountStr = action.details.amount ?? "8"
+            let amount = Int(amountStr) ?? 8
+            let unit = action.details.unit ?? "oz"
+            
+            logsManager.logWater(amount: amount, unit: unit, source: .voice)
+            showToast("Logged \(amount) \(unit) of water")
             
         case .logFood:
             if let foodItem = action.details.item {

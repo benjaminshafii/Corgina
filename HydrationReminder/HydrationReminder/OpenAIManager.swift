@@ -17,6 +17,56 @@ struct FoodAnalysis: Codable {
         let carbs: Double?
         let fat: Double?
         let fiber: Double?
+        
+        init(name: String, quantity: String, estimatedCalories: Int? = nil, 
+             protein: Double? = nil, carbs: Double? = nil, fat: Double? = nil, 
+             fiber: Double? = nil) {
+            self.name = name
+            self.quantity = quantity
+            self.estimatedCalories = estimatedCalories
+            self.protein = protein
+            self.carbs = carbs
+            self.fat = fat
+            self.fiber = fiber
+        }
+        
+        enum CodingKeys: String, CodingKey {
+            case name, quantity, estimatedCalories, protein, carbs, fat, fiber
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            
+            self.name = try container.decode(String.self, forKey: .name)
+            
+            // Handle quantity as either String or Number
+            if let quantityString = try? container.decode(String.self, forKey: .quantity) {
+                self.quantity = quantityString
+            } else if let quantityInt = try? container.decode(Int.self, forKey: .quantity) {
+                self.quantity = String(quantityInt)
+            } else if let quantityDouble = try? container.decode(Double.self, forKey: .quantity) {
+                self.quantity = String(quantityDouble)
+            } else {
+                self.quantity = "1"  // Default value if parsing fails
+            }
+            
+            self.estimatedCalories = try container.decodeIfPresent(Int.self, forKey: .estimatedCalories)
+            self.protein = try container.decodeIfPresent(Double.self, forKey: .protein)
+            self.carbs = try container.decodeIfPresent(Double.self, forKey: .carbs)
+            self.fat = try container.decodeIfPresent(Double.self, forKey: .fat)
+            self.fiber = try container.decodeIfPresent(Double.self, forKey: .fiber)
+        }
+        
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(name, forKey: .name)
+            try container.encode(quantity, forKey: .quantity)
+            try container.encodeIfPresent(estimatedCalories, forKey: .estimatedCalories)
+            try container.encodeIfPresent(protein, forKey: .protein)
+            try container.encodeIfPresent(carbs, forKey: .carbs)
+            try container.encodeIfPresent(fat, forKey: .fat)
+            try container.encodeIfPresent(fiber, forKey: .fiber)
+        }
     }
 }
 
@@ -142,8 +192,33 @@ class OpenAIManager: ObservableObject {
         do {
             let data = cleanedContent.data(using: .utf8)!
             return try JSONDecoder().decode(FoodAnalysis.self, from: data)
+        } catch let decodingError as DecodingError {
+            print("JSON parsing error: \(decodingError)")
+            print("Content being parsed: \(cleanedContent)")
+            
+            // Try to provide a fallback response
+            if cleanedContent.contains("items") {
+                // Create a basic fallback response
+                return FoodAnalysis(
+                    items: [FoodAnalysis.FoodItem(
+                        name: "Food item",
+                        quantity: "1",
+                        estimatedCalories: nil,
+                        protein: nil,
+                        carbs: nil,
+                        fat: nil,
+                        fiber: nil
+                    )],
+                    totalCalories: nil,
+                    totalProtein: nil,
+                    totalCarbs: nil,
+                    totalFat: nil,
+                    totalFiber: nil
+                )
+            }
+            throw OpenAIError.invalidResponse
         } catch {
-            print("JSON parsing error: \(error)")
+            print("Unexpected error: \(error)")
             throw OpenAIError.invalidResponse
         }
     }

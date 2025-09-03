@@ -57,7 +57,9 @@ actor AsyncTaskManager {
     private var openAIManager: OpenAIManager?
     
     private init() {
-        loadPersistedTasks()
+        Task {
+            await loadPersistedTasks()
+        }
     }
     
     // MARK: - Configuration

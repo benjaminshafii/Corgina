@@ -22,6 +22,11 @@ struct DashboardView: View {
     @State private var showVoiceSheet = false
     @State private var voiceActionConfirmation = false
     @State private var lastVoiceActions: [VoiceAction] = []
+    @State private var isRecordingInline = false
+    @State private var showTranscriptionToast = false
+    @State private var transcriptionText = ""
+    @State private var showActionToast = false
+    @State private var actionText = ""
     
     private var todaysDate: String {
         let formatter = DateFormatter()
@@ -114,6 +119,47 @@ struct DashboardView: View {
                             .padding(.trailing, 20)
                             .padding(.bottom, 90)
                     }
+                }
+                
+                // Toast overlays
+                if showTranscriptionToast {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Image(systemName: "mic.fill")
+                                .foregroundColor(.white)
+                            Text(transcriptionText)
+                                .foregroundColor(.white)
+                                .lineLimit(2)
+                        }
+                        .padding()
+                        .background(Color.black.opacity(0.8))
+                        .cornerRadius(20)
+                        .padding(.horizontal)
+                        .padding(.bottom, 180)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .animation(.spring(), value: showTranscriptionToast)
+                }
+                
+                if showActionToast {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text(actionText)
+                                .foregroundColor(.white)
+                                .lineLimit(3)
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.9))
+                        .cornerRadius(20)
+                        .padding(.horizontal)
+                        .padding(.bottom, 180)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .animation(.spring(), value: showActionToast)
                 }
             }
             .navigationBarHidden(true)
@@ -536,26 +582,40 @@ struct DashboardView: View {
     // MARK: - Voice UI Components
     
     private var voiceActionButton: some View {
-        Button(action: {
-            showVoiceSheet = true
-        }) {
-            ZStack {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: isRecordingInline ? [Color.red, Color.orange] : [Color.blue, Color.purple],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 60, height: 60)
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+            
+            Image(systemName: isRecordingInline ? "stop.fill" : "mic.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.white)
+            
+            if isRecordingInline {
                 Circle()
-                    .fill(LinearGradient(
-                        colors: [Color.blue, Color.purple],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 60, height: 60)
-                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-                
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
+                    .stroke(Color.white.opacity(0.5), lineWidth: 3)
+                    .frame(width: 70, height: 70)
+                    .scaleEffect(isRecordingInline ? 1.2 : 1.0)
+                    .opacity(isRecordingInline ? 0 : 1)
+                    .animation(.easeOut(duration: 0.5).repeatForever(autoreverses: false), value: isRecordingInline)
             }
         }
-        .scaleEffect(voiceLogManager.isRecording ? 1.1 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: voiceLogManager.isRecording)
+        .scaleEffect(isRecordingInline ? 1.1 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isRecordingInline)
+        .onLongPressGesture(minimumDuration: 0.2, maximumDistance: .infinity) {
+            // Long press started - start recording
+            startInlineRecording()
+        } onPressingChanged: { isPressing in
+            if !isPressing && isRecordingInline {
+                // Released - stop recording
+                stopInlineRecording()
+            }
+        }
     }
     
     private var voiceProcessingCard: some View {
@@ -693,6 +753,92 @@ struct DashboardView: View {
             notes = ""
             selectedMealType = nil
             selectedDate = Date()
+        }
+    }
+    
+    // MARK: - Inline Voice Recording
+    
+    private func startInlineRecording() {
+        isRecordingInline = true
+        voiceLogManager.startRecording()
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
+    private func stopInlineRecording() {
+        isRecordingInline = false
+        voiceLogManager.stopRecording()
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        // Show transcription toast after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if let transcription = voiceLogManager.lastTranscription {
+                transcriptionText = transcription
+                showTranscriptionToast = true
+                
+                // Hide transcription toast after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showTranscriptionToast = false
+                    
+                    // Process actions if any detected
+                    if !voiceLogManager.detectedActions.isEmpty {
+                        processDetectedActions()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func processDetectedActions() {
+        let actions = voiceLogManager.detectedActions
+        if actions.isEmpty { return }
+        
+        // Create action summary text
+        var actionSummary = ""
+        for action in actions {
+            switch action.type {
+            case .logFood:
+                if let foodName = action.details.item {
+                    actionSummary += "Adding \(foodName) to food log\n"
+                }
+            case .logWater:
+                if let amount = action.details.amount, let unit = action.details.unit {
+                    actionSummary += "Logging \(amount)\(unit) of water\n"
+                }
+            case .logVitamin:
+                if let vitaminName = action.details.item {
+                    actionSummary += "Marking \(vitaminName) as taken\n"
+                }
+            case .logSymptom:
+                if let symptoms = action.details.symptoms {
+                    actionSummary += "Logging symptoms: \(symptoms.joined(separator: ", "))\n"
+                }
+            case .logPUQE:
+                actionSummary += "Logging PUQE score\n"
+            case .unknown:
+                actionSummary += "Unknown action\n"
+            }
+        }
+        
+        actionText = actionSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        showActionToast = true
+        
+        // Execute actions
+        voiceLogManager.executeVoiceActions(actions)
+        
+        // Update UI
+        lastVoiceActions = actions
+        voiceActionConfirmation = false // Don't show confirmation card since we're using toasts
+        
+        // Hide action toast after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            showActionToast = false
+            voiceLogManager.detectedActions = []
         }
     }
 }

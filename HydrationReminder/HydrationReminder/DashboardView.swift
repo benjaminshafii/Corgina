@@ -28,6 +28,47 @@ struct DashboardView: View {
     @State private var showActionToast = false
     @State private var actionText = ""
     @State private var showingPhotoPicker = false
+    @State private var isProcessingPhoto = false
+    @State private var photoProcessingStatus = ""
+    @State private var photoProcessingProgress: PhotoProcessingStage = .none
+    
+    enum PhotoProcessingStage {
+        case none
+        case uploading
+        case analyzing
+        case recognized
+        case complete
+        
+        var message: String {
+            switch self {
+            case .none: return ""
+            case .uploading: return "Uploading photo..."
+            case .analyzing: return "Analyzing with AI..."
+            case .recognized: return "Food recognized!"
+            case .complete: return "Added to activity log"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .none: return ""
+            case .uploading: return "icloud.and.arrow.up"
+            case .analyzing: return "brain"
+            case .recognized: return "checkmark.circle"
+            case .complete: return "checkmark.circle.fill"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .none: return .gray
+            case .uploading: return .blue
+            case .analyzing: return .purple
+            case .recognized: return .orange
+            case .complete: return .green
+            }
+        }
+    }
     
     private var todaysDate: String {
         let formatter = DateFormatter()
@@ -107,6 +148,10 @@ struct DashboardView: View {
                         headerSection
                         
                         nextRemindersCard
+                        
+                        if isProcessingPhoto {
+                            photoProcessingCard
+                        }
                         
                         if voiceLogManager.isProcessingVoice {
                             voiceProcessingCard
@@ -197,8 +242,12 @@ struct DashboardView: View {
                     if let image = capturedImage,
                        let data = image.jpegData(compressionQuality: 0.8) {
                         tempImageData = data
-                        showingAddNotes = true
                         capturedImage = nil
+                        // Automatically process the photo without showing notes view
+                        notes = ""
+                        selectedMealType = nil
+                        selectedDate = Date()
+                        savePhotoLog()
                     }
                 }
         }
@@ -289,9 +338,13 @@ struct DashboardView: View {
                 if let newItem = newItem {
                     if let data = try? await newItem.loadTransferable(type: Data.self) {
                         tempImageData = data
-                        showingAddNotes = true
                         selectedItem = nil
                         showingPhotoPicker = false
+                        // Automatically process the photo without showing notes view
+                        notes = ""
+                        selectedMealType = nil
+                        selectedDate = Date()
+                        savePhotoLog()
                     }
                 }
             }
@@ -756,6 +809,43 @@ struct DashboardView: View {
         }
     }
     
+    private var photoProcessingCard: some View {
+        HStack(spacing: 16) {
+            // Animated icon
+            Image(systemName: photoProcessingProgress.icon)
+                .font(.title2)
+                .foregroundColor(photoProcessingProgress.color)
+                .symbolEffect(.pulse, isActive: isProcessingPhoto)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Processing Photo")
+                    .font(.headline)
+                Text(photoProcessingProgress.message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            if photoProcessingProgress == .complete {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.title2)
+            } else {
+                ProgressView()
+                    .scaleEffect(0.8)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .transition(.asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        ))
+    }
+    
     private var voiceProcessingCard: some View {
         VStack(spacing: 12) {
             HStack {
@@ -873,25 +963,102 @@ struct DashboardView: View {
     }
     
     private func savePhotoLog() {
-        if let data = tempImageData {
-            photoLogManager.addPhotoLog(
-                imageData: data,
-                notes: notes,
-                mealType: selectedMealType,
-                date: selectedDate
-            )
-            
-            logsManager.logFood(
-                notes: notes.isEmpty ? "Photo logged" : notes,
-                source: .manual
-            )
-            
-            showingAddNotes = false
-            tempImageData = nil
-            notes = ""
-            selectedMealType = nil
-            selectedDate = Date()
+        guard let data = tempImageData else { return }
+        
+        // Start processing
+        isProcessingPhoto = true
+        photoProcessingProgress = .uploading
+        showingAddNotes = false
+        
+        // Add photo to log manager
+        photoLogManager.addPhotoLog(
+            imageData: data,
+            notes: notes,
+            mealType: selectedMealType,
+            date: selectedDate
+        )
+        
+        // Create initial log entry
+        let logId = UUID()
+        let initialLog = LogEntry(
+            id: logId,
+            date: selectedDate,
+            type: .food,
+            source: .manual,
+            notes: notes.isEmpty ? "Analyzing photo..." : notes,
+            foodName: "Processing..."
+        )
+        logsManager.logEntries.append(initialLog)
+        logsManager.saveLogs()
+        
+        // Process with AI
+        Task {
+            do {
+                // Update status to analyzing
+                await MainActor.run {
+                    photoProcessingProgress = .analyzing
+                }
+                
+                // Analyze with OpenAI
+                let analysis = try await OpenAIManager.shared.analyzeFood(imageData: data)
+                
+                await MainActor.run {
+                    photoProcessingProgress = .recognized
+                }
+                
+                // Calculate totals
+                let totalCalories = analysis.totalCalories ?? 0
+                let totalProtein = Int(analysis.totalProtein ?? 0)
+                let totalCarbs = Int(analysis.totalCarbs ?? 0)
+                let totalFat = Int(analysis.totalFat ?? 0)
+                
+                // Create food description
+                let foodNames = analysis.items.map { $0.name }.joined(separator: ", ")
+                let finalNotes = notes.isEmpty ? "Photo: \(foodNames)" : "\(notes)\nDetected: \(foodNames)"
+                
+                // Update the log entry with AI results
+                await MainActor.run {
+                    if let index = logsManager.logEntries.firstIndex(where: { $0.id == logId }) {
+                        logsManager.logEntries[index].notes = finalNotes
+                        logsManager.logEntries[index].foodName = foodNames
+                        logsManager.logEntries[index].calories = totalCalories
+                        logsManager.logEntries[index].protein = totalProtein
+                        logsManager.logEntries[index].carbs = totalCarbs
+                        logsManager.logEntries[index].fat = totalFat
+                        logsManager.saveLogs()
+                        logsManager.objectWillChange.send()
+                    }
+                    
+                    photoProcessingProgress = .complete
+                    
+                    // Hide processing card after 2 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        isProcessingPhoto = false
+                        photoProcessingProgress = .none
+                    }
+                }
+            } catch {
+                // Handle error
+                await MainActor.run {
+                    if let index = logsManager.logEntries.firstIndex(where: { $0.id == logId }) {
+                        logsManager.logEntries[index].notes = notes.isEmpty ? "Photo logged (AI analysis failed)" : notes
+                        logsManager.logEntries[index].foodName = "Photo logged"
+                        logsManager.saveLogs()
+                        logsManager.objectWillChange.send()
+                    }
+                    
+                    photoProcessingProgress = .complete
+                    isProcessingPhoto = false
+                }
+                print("Failed to analyze photo: \(error)")
+            }
         }
+        
+        // Clear temp data
+        tempImageData = nil
+        notes = ""
+        selectedMealType = nil
+        selectedDate = Date()
     }
     
     // MARK: - Inline Voice Recording

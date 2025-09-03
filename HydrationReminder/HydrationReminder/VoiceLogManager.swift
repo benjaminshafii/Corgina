@@ -148,9 +148,10 @@ class VoiceLogManager: NSObject, ObservableObject {
                         
                         if !actions.isEmpty {
                             self.showActionConfirmation = true
-                            // Auto-execute ALL actions (lowered threshold for testing)
-                            for action in actions where action.confidence >= 0.5 {
-                                print("Voice: Executing action: \(action.type) with confidence \(action.confidence)")
+                            // Auto-execute ALL actions (removing confidence check for now)
+                            print("Voice: Executing \(actions.count) actions")
+                            for action in actions {
+                                print("Voice: Executing action: \(action.type.rawValue) with confidence \(action.confidence)")
                                 executeAction(action)
                             }
                         } else {
@@ -172,6 +173,8 @@ class VoiceLogManager: NSObject, ObservableObject {
     }
     
     func executeAction(_ action: VoiceAction) {
+        print("Voice: executeAction called for \(action.type.rawValue)")
+        
         switch action.type {
         case .logWater:
             // Use default of 8 oz if amount not specified
@@ -179,14 +182,17 @@ class VoiceLogManager: NSObject, ObservableObject {
             let amount = Int(amountStr) ?? 8
             let unit = action.details.unit ?? "oz"
             
+            print("Voice: Logging water - \(amount) \(unit)")
             logsManager.logWater(amount: amount, unit: unit, source: .voice)
             showToast("Logged \(amount) \(unit) of water")
+            print("Voice: Water logged successfully")
             
         case .logFood:
-            if let foodItem = action.details.item {
-                logsManager.logFood(notes: foodItem, source: .voice)
-                showToast("Logged food: \(foodItem)")
-            }
+            let foodItem = action.details.item ?? "meal"
+            print("Voice: Logging food - \(foodItem)")
+            logsManager.logFood(notes: foodItem, source: .voice)
+            showToast("Logged food: \(foodItem)")
+            print("Voice: Food logged successfully")
             
         case .logVitamin:
             if let vitaminName = action.details.vitaminName {

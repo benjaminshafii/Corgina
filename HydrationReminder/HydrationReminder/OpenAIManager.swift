@@ -143,7 +143,7 @@ class OpenAIManager: ObservableObject {
         ]
         
         let requestBody: [String: Any] = [
-            "model": "gpt-5",
+            "model": "gpt-4o",
             "messages": messages,
             "max_tokens": 500,
             "temperature": 0.3
@@ -320,7 +320,7 @@ class OpenAIManager: ObservableObject {
         ]
         
         let requestBody: [String: Any] = [
-            "model": "gpt-5", // Using GPT-5 as requested
+            "model": "gpt-4o", // Using GPT-4o (latest available model)
             "messages": messages,
             "max_tokens": 1000,
             "temperature": 0.1, // Lower temperature for more consistent parsing

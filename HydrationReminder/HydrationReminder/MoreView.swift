@@ -9,6 +9,18 @@ struct MoreView: View {
         NavigationView {
             List {
                 Section("Health Tracking") {
+                    NavigationLink(destination: ContentView()
+                        .environmentObject(logsManager)
+                        .environmentObject(notificationManager)) {
+                        HStack {
+                            Image(systemName: "bell.fill")
+                                .foregroundColor(.orange)
+                                .frame(width: 30)
+                            Text("Notification Reminders")
+                            Spacer()
+                        }
+                    }
+                    
                     NavigationLink(destination: SupplementTrackerView()) {
                         HStack {
                             Image(systemName: "pills.fill")

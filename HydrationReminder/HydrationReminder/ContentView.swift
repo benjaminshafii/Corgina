@@ -29,109 +29,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 25) {
-                    VStack(spacing: 20) {
-                        Text("Log Your Intake")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        HStack(spacing: 20) {
-                            Button(action: {
-                                // Log to unified LogsManager which also updates NotificationManager
-                                logsManager.logFood(source: .manual)
-                                alertMessage = "Meal logged! Next reminder in \(Int(notificationManager.eatingInterval)) hours"
-                                showingAlert = true
-                            }) {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "fork.knife.circle.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.orange)
-                                    
-                                    Text("Log Meal")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    
-                                    Text(timeSinceString(from: notificationManager.lastEatingTime))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
-                                .background(Color.orange.opacity(0.1))
-                                .cornerRadius(15)
-                            }
-                            
-                            Button(action: {
-                                // Log to unified LogsManager which also updates NotificationManager
-                                logsManager.logDrink(source: .manual)
-                                alertMessage = "Water logged! Next reminder in \(Int(notificationManager.drinkingInterval)) hour(s)"
-                                showingAlert = true
-                            }) {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "drop.circle.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.blue)
-                                    
-                                    Text("Log Water")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    
-                                    Text(timeSinceString(from: notificationManager.lastDrinkingTime))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(15)
-                            }
-                        }
-                        
-                        // Today's Summary
-                        if let summary = logsManager.todaysSummary {
-                            HStack(spacing: 15) {
-                                VStack {
-                                    Text("\(summary.foodCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Meals")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                
-                                VStack {
-                                    Text("\(summary.drinkCount)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Drinks")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                
-                                if summary.pukeCount > 0 {
-                                    VStack {
-                                        Text("\(summary.pukeCount)")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.red)
-                                        Text("Episodes")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                }
-                            }
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding(.vertical, 10)
-                    
-                    Divider()
-                        .padding(.vertical, 10)
+                VStack(spacing: 25)
                     
                     VStack(spacing: 20) {
                         Text("Next Reminders")
@@ -327,7 +225,7 @@ struct ContentView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Health Tracker")
+            .navigationTitle("Reminders")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 notificationManager.requestPermission()

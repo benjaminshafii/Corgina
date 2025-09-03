@@ -775,19 +775,56 @@ struct DashboardView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        // Show transcription toast after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if let transcription = voiceLogManager.lastTranscription {
-                transcriptionText = transcription
-                showTranscriptionToast = true
+        // Show "Processing..." toast immediately
+        transcriptionText = "Processing your voice command..."
+        showTranscriptionToast = true
+        
+        // Wait for the voice processing to complete
+        Task {
+            // Give the voice manager time to process (usually takes 2-3 seconds)
+            var attempts = 0
+            while attempts < 50 { // Max 5 seconds wait
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
-                // Hide transcription toast after 2 seconds
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    showTranscriptionToast = false
+                if let transcription = voiceLogManager.lastTranscription {
+                    await MainActor.run {
+                        transcriptionText = transcription
+                        showTranscriptionToast = true
+                    }
                     
-                    // Process actions if any detected
-                    if !voiceLogManager.detectedActions.isEmpty {
-                        processDetectedActions()
+                    // Wait a bit more for actions to be detected
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    
+                    await MainActor.run {
+                        // Hide transcription toast after showing it
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showTranscriptionToast = false
+                        }
+                        
+                        // Process actions if any detected
+                        if !voiceLogManager.detectedActions.isEmpty {
+                            processDetectedActions()
+                        } else {
+                            // Show a message if no actions were detected
+                            actionText = "No actions detected from your command"
+                            showActionToast = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showActionToast = false
+                            }
+                        }
+                    }
+                    break
+                }
+                attempts += 1
+            }
+            
+            // If we timed out, show error
+            if attempts >= 50 {
+                await MainActor.run {
+                    transcriptionText = "Failed to process voice command"
+                    showTranscriptionToast = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showTranscriptionToast = false
                     }
                 }
             }

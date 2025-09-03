@@ -11,9 +11,9 @@ struct MainTabView: View {
                     Label("Dashboard", systemImage: "house.fill")
                 }
             
-            ContentView()
+            LogLedgerView(logsManager: logsManager)
                 .tabItem {
-                    Label("Reminders", systemImage: "bell.fill")
+                    Label("Logs", systemImage: "list.clipboard")
                 }
             
             PhotoFoodLogView()

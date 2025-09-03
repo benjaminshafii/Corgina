@@ -143,8 +143,14 @@ struct DashboardView: View {
                 if !voiceLogManager.detectedActions.isEmpty {
                     lastVoiceActions = voiceLogManager.detectedActions
                     voiceActionConfirmation = true
+                    // Force refresh of logs
+                    logsManager.objectWillChange.send()
                 }
             })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoiceLogCreated"))) { _ in
+            // Force UI refresh when voice log is created
+            logsManager.objectWillChange.send()
         }
         .confirmationDialog("Add Food Photo", isPresented: $showingPhotoOptions) {
             Button("Take Photo") {

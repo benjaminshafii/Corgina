@@ -186,6 +186,7 @@ class VoiceLogManager: NSObject, ObservableObject {
             logsManager.logWater(amount: amount, unit: unit, source: .voice)
             showToast("Logged \(amount) \(unit) of water")
             print("Voice: Water logged successfully")
+            NotificationCenter.default.post(name: Notification.Name("VoiceLogCreated"), object: nil)
             
         case .logFood:
             let foodItem = action.details.item ?? "meal"
@@ -193,6 +194,7 @@ class VoiceLogManager: NSObject, ObservableObject {
             logsManager.logFood(notes: foodItem, source: .voice)
             showToast("Logged food: \(foodItem)")
             print("Voice: Food logged successfully")
+            NotificationCenter.default.post(name: Notification.Name("VoiceLogCreated"), object: nil)
             
         case .logVitamin:
             if let vitaminName = action.details.vitaminName {

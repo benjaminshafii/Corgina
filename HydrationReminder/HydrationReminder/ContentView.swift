@@ -29,7 +29,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 25)
+                VStack(spacing: 25) {
                     
                     VStack(spacing: 20) {
                         Text("Next Reminders")

@@ -34,6 +34,30 @@ struct DashboardView: View {
         return formatter.string(from: Date())
     }
     
+    private let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+    
+    private func timeUntilString(_ date: Date) -> String {
+        let interval = date.timeIntervalSinceNow
+        if interval < 0 {
+            return "overdue"
+        }
+        
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) % 3600 / 60
+        
+        if hours > 0 {
+            return "in \(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "in \(minutes)m"
+        } else {
+            return "soon"
+        }
+    }
+    
     private var todaysNutrition: (calories: Int, protein: Double, carbs: Double, fat: Double, fiber: Double) {
         // Combine nutrition from all sources
         var totalCalories = 0
@@ -80,6 +104,8 @@ struct DashboardView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         headerSection
+                        
+                        nextRemindersCard
                         
                         if voiceLogManager.isProcessingVoice {
                             voiceProcessingCard
@@ -249,6 +275,85 @@ struct DashboardView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    private var nextRemindersCard: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "bell.fill")
+                    .foregroundColor(.purple)
+                Text("Next Reminders")
+                    .font(.headline)
+                Spacer()
+            }
+            
+            HStack(spacing: 20) {
+                // Water reminder
+                if notificationManager.drinkingEnabled,
+                   let nextWater = notificationManager.nextDrinkingNotification {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "drop.fill")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                            Text("Water")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Text(timeFormatter.string(from: nextWater))
+                            .font(.system(.title3, design: .rounded))
+                            .fontWeight(.semibold)
+                        Text(timeUntilString(nextWater))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(10)
+                }
+                
+                // Meal reminder
+                if notificationManager.eatingEnabled,
+                   let nextMeal = notificationManager.nextEatingNotification {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "fork.knife")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("Meal")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Text(timeFormatter.string(from: nextMeal))
+                            .font(.system(.title3, design: .rounded))
+                            .fontWeight(.semibold)
+                        Text(timeUntilString(nextMeal))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(10)
+                }
+            }
+            
+            // Show message if no reminders are enabled
+            if !notificationManager.drinkingEnabled && !notificationManager.eatingEnabled {
+                Text("No reminders enabled")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
     
     private var nutritionSummaryCard: some View {

@@ -26,8 +26,9 @@ class VoiceLogManager: NSObject, ObservableObject {
     private let supplementManager: SupplementManager
     
     override init() {
-        self.logsManager = LogsManager(notificationManager: NotificationManager.shared)
-        self.supplementManager = SupplementManager(notificationManager: NotificationManager.shared)
+        let notificationManager = NotificationManager()
+        self.logsManager = LogsManager(notificationManager: notificationManager)
+        self.supplementManager = SupplementManager(notificationManager: notificationManager)
         super.init()
         loadLogs()
         setupAudioSession()

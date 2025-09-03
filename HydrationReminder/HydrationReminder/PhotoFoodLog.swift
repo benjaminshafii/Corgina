@@ -137,7 +137,7 @@ class PhotoFoodLogManager: ObservableObject {
         return resizedImage?.jpegData(compressionQuality: 0.7)
     }
     
-    private func savePhotoLogs() {
+    func savePhotoLogs() {
         if let encoded = try? JSONEncoder().encode(photoLogs) {
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
         }

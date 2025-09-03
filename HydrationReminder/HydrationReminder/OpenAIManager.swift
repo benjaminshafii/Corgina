@@ -339,30 +339,30 @@ class OpenAIManager: ObservableObject {
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard let contentData = cleanedContent.data(using: .utf8),
-              let actionsJson = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any],
-              let actionsArray = actionsJson["actions"] as? [[String: Any]] ?? actionsJson["data"] as? [[String: Any]] else {
-            
-            if let singleAction = try? JSONDecoder().decode(VoiceAction.self, from: contentData) {
-                DispatchQueue.main.async {
-                    self.detectedActions = [singleAction]
-                }
-                return [singleAction]
-            }
-            
+        guard let contentData = cleanedContent.data(using: .utf8) else {
             throw OpenAIError.invalidResponse
         }
         
-        let actions = try actionsArray.compactMap { actionDict -> VoiceAction? in
-            guard let actionData = try? JSONSerialization.data(withJSONObject: actionDict) else { return nil }
-            return try? JSONDecoder().decode(VoiceAction.self, from: actionData)
+        if let actionsJson = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any],
+           let actionsArray = actionsJson["actions"] as? [[String: Any]] ?? actionsJson["data"] as? [[String: Any]] {
+            let actions = try actionsArray.compactMap { actionDict -> VoiceAction? in
+                guard let actionData = try? JSONSerialization.data(withJSONObject: actionDict) else { return nil }
+                return try? JSONDecoder().decode(VoiceAction.self, from: actionData)
+            }
+            
+            DispatchQueue.main.async {
+                self.detectedActions = actions
+            }
+            
+            return actions
+        } else if let singleAction = try? JSONDecoder().decode(VoiceAction.self, from: contentData) {
+            DispatchQueue.main.async {
+                self.detectedActions = [singleAction]
+            }
+            return [singleAction]
+        } else {
+            throw OpenAIError.invalidResponse
         }
-        
-        DispatchQueue.main.async {
-            self.detectedActions = actions
-        }
-        
-        return actions
     }
     
     func transcribeAndExtractActions(audioData: Data) async throws -> [VoiceAction] {

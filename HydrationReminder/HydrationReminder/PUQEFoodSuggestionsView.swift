@@ -3,7 +3,7 @@ import SwiftUI
 struct PUQEFoodSuggestionsView: View {
     let puqeScore: PUQEScore
     @StateObject private var openAIManager = OpenAIManager.shared
-    @StateObject private var photoLogManager = PhotoFoodLogManager.shared
+    @StateObject private var photoLogManager = PhotoFoodLogManager()
     @State private var suggestions: [FoodSuggestion] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -205,15 +205,17 @@ struct PUQEFoodSuggestionsView: View {
     private func getRecentFoodNames() -> [String] {
         let last24Hours = Date().addingTimeInterval(-24 * 60 * 60)
         
-        return photoLogManager.photoFoodLogs
+        return photoLogManager.photoLogs
             .filter { $0.date >= last24Hours }
-            .compactMap { log in
+            .flatMap { log -> [String] in
                 if let items = log.aiAnalysis?.items {
                     return items.map { $0.name }
                 }
-                return log.notes?.components(separatedBy: ",").first
+                if let notes = log.notes?.components(separatedBy: ",").first {
+                    return [notes]
+                }
+                return []
             }
-            .flatMap { $0 }
     }
     
     private func getProblematicFoods() -> [String] {

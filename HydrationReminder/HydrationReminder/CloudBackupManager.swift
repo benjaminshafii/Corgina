@@ -150,8 +150,8 @@ class CloudBackupManager: ObservableObject {
     private func collectAllData() async throws -> BackupData {
         return BackupData(
             voiceLogs: VoiceLogManager().voiceLogs,
-            photoLogs: PhotoFoodLogManager.shared.photoFoodLogs,
-            logEntries: LogsManager(notificationManager: NotificationManager.shared).logEntries,
+            photoLogs: PhotoFoodLogManager().photoLogs,
+            logEntries: LogsManager(notificationManager: NotificationManager()).logEntries,
             puqeScores: PUQEManager().scores,
             supplements: SupplementManager().supplements,
             settings: collectSettings(),
@@ -196,13 +196,16 @@ class CloudBackupManager: ObservableObject {
         
         // Create separate records for large files (photos, audio)
         for photoLog in data.photoLogs {
-            if let imageData = photoLog.imageData {
+            let imageData = photoLog.imageData
+            if !imageData.isEmpty {
                 let photoRecord = CKRecord(recordType: "PhotoBackup", recordID: CKRecord.ID(recordName: photoLog.id.uuidString, zoneID: recordZone.zoneID))
                 
-                // Store image as CKAsset
+            // Store image as CKAsset
+            if let imageData = photoLog.imageData as Data? {
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(photoLog.id.uuidString).jpg")
                 try imageData.write(to: tempURL)
                 photoRecord["image"] = CKAsset(fileURL: tempURL)
+            }
                 photoRecord["photoLogId"] = photoLog.id.uuidString
                 
                 records.append(photoRecord)
@@ -261,7 +264,16 @@ class CloudBackupManager: ObservableObject {
                 
                 // Find corresponding photo log and update with image data
                 if let index = data.photoLogs.firstIndex(where: { $0.id.uuidString == photoLogId }) {
-                    data.photoLogs[index].imageData = imageData
+                    // Need to create a new instance since imageData is immutable
+                    var updatedLog = data.photoLogs[index]
+                    data.photoLogs[index] = PhotoFoodLog(
+                        id: updatedLog.id,
+                        date: updatedLog.date,
+                        imageData: imageData,
+                        notes: updatedLog.notes,
+                        mealType: updatedLog.mealType,
+                        aiAnalysis: updatedLog.aiAnalysis
+                    )
                 }
             }
         }
@@ -276,11 +288,12 @@ class CloudBackupManager: ObservableObject {
         }
         
         // Restore photo logs
-        PhotoFoodLogManager.shared.photoFoodLogs = data.photoLogs
-        PhotoFoodLogManager.shared.saveLogs()
+        let photoLogManager = PhotoFoodLogManager()
+        photoLogManager.photoLogs = data.photoLogs
+        photoLogManager.savePhotoLogs()
         
         // Restore log entries
-        let logsManager = LogsManager(notificationManager: NotificationManager.shared)
+        let logsManager = LogsManager(notificationManager: NotificationManager())
         logsManager.logEntries = data.logEntries
         
         // Restore PUQE scores
@@ -369,8 +382,8 @@ class CloudBackupManager: ObservableObject {
     private func collectAllDataSync() throws -> BackupData {
         return BackupData(
             voiceLogs: VoiceLogManager().voiceLogs,
-            photoLogs: PhotoFoodLogManager.shared.photoFoodLogs,
-            logEntries: LogsManager(notificationManager: NotificationManager.shared).logEntries,
+            photoLogs: PhotoFoodLogManager().photoLogs,
+            logEntries: LogsManager(notificationManager: NotificationManager()).logEntries,
             puqeScores: PUQEManager().scores,
             supplements: SupplementManager().supplements,
             settings: collectSettings(),

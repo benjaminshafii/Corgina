@@ -17,8 +17,8 @@ class SupplementManager: ObservableObject {
         let complianceRate: Double
     }
     
-    init(notificationManager: NotificationManager = NotificationManager.shared) {
-        self.notificationManager = notificationManager
+    init(notificationManager: NotificationManager? = nil) {
+        self.notificationManager = notificationManager ?? NotificationManager()
         loadSupplements()
         updateTodaysSummary()
         scheduleReminders()

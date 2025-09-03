@@ -30,13 +30,15 @@ struct DashboardView: View {
     }
     
     private var todaysNutrition: (calories: Int, protein: Double, carbs: Double, fat: Double, fiber: Double) {
-        let todaysPhotos = photoLogManager.getLogsForToday()
+        // Combine nutrition from all sources
         var totalCalories = 0
         var totalProtein = 0.0
         var totalCarbs = 0.0
         var totalFat = 0.0
         var totalFiber = 0.0
         
+        // Add from photo logs
+        let todaysPhotos = photoLogManager.getLogsForToday()
         for photo in todaysPhotos {
             if let analysis = photo.aiAnalysis {
                 totalCalories += analysis.totalCalories ?? 0
@@ -47,6 +49,15 @@ struct DashboardView: View {
             }
         }
         
+        // Add from voice/manual logs with macros
+        let todaysLogs = logsManager.getTodayLogs()
+        for log in todaysLogs where log.type == .food {
+            totalCalories += log.calories ?? 0
+            totalProtein += Double(log.protein ?? 0)
+            totalCarbs += Double(log.carbs ?? 0)
+            totalFat += Double(log.fat ?? 0)
+        }
+        
         return (totalCalories, totalProtein, totalCarbs, totalFat, totalFiber)
     }
     
@@ -55,7 +66,7 @@ struct DashboardView: View {
     }
     
     private var todaysFoodCount: Int {
-        logsManager.getTodayFoodCount()
+        logsManager.getTodayFoodCount() + photoLogManager.getLogsForToday().count
     }
     
     var body: some View {
@@ -73,6 +84,10 @@ struct DashboardView: View {
                             voiceActionsCard
                         }
                         
+                        hydrationCard
+                        
+                        foodCard
+                        
                         nutritionSummaryCard
                         
                         if let summary = supplementManager.todaysSummary {
@@ -82,10 +97,6 @@ struct DashboardView: View {
                         if let todaysScore = puqeManager.todaysScore {
                             puqeScoreCard(todaysScore)
                         }
-                        
-                        hydrationCard
-                        
-                        foodCard
                         
                         recentActivitySection
                     }
@@ -151,6 +162,10 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoiceLogCreated"))) { _ in
             // Force UI refresh when voice log is created
             logsManager.objectWillChange.send()
+        }
+        .onAppear {
+            // Configure VoiceLogManager with shared managers
+            voiceLogManager.configure(logsManager: logsManager, supplementManager: supplementManager)
         }
         .confirmationDialog("Add Food Photo", isPresented: $showingPhotoOptions) {
             Button("Take Photo") {
@@ -255,7 +270,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Hydration")
                         .font(.headline)
-                    Text("\(todaysWaterIntake) glasses today")
+                    Text("\(todaysWaterIntake * 237) ml today")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -268,11 +283,11 @@ struct DashboardView: View {
             }
             
             HStack(spacing: 12) {
-                ForEach([4, 8, 12, 16], id: \.self) { ounces in
+                ForEach([125, 250, 375, 500], id: \.self) { ml in
                     Button(action: {
-                        logsManager.logWater(amount: ounces, unit: "oz", source: .manual)
+                        logsManager.logWater(amount: ml, unit: "ml", source: .manual)
                     }) {
-                        Text("\(ounces)oz")
+                        Text("\(ml)ml")
                             .font(.caption)
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity)
@@ -285,11 +300,11 @@ struct DashboardView: View {
             }
             
             Button(action: {
-                logsManager.logWater(amount: 8, unit: "oz", source: .manual)
+                logsManager.logWater(amount: 250, unit: "ml", source: .manual)
             }) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
-                    Text("Quick Add 8oz")
+                    Text("Quick Add 250ml")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -425,34 +440,18 @@ struct DashboardView: View {
                     .foregroundColor(.orange)
             }
             
-            HStack(spacing: 12) {
-                Button(action: {
-                    showingPhotoOptions = true
-                }) {
-                    HStack {
-                        Image(systemName: "camera.fill")
-                        Text("Add Photo")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+            Button(action: {
+                showingPhotoOptions = true
+            }) {
+                HStack {
+                    Image(systemName: "camera.fill")
+                    Text("Add Photo")
                 }
-                
-                Button(action: {
-                    showingVoiceRecording = true
-                }) {
-                    HStack {
-                        Image(systemName: "mic.fill")
-                        Text("Voice Note")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.orange)
+                .foregroundColor(.white)
+                .cornerRadius(10)
             }
             
             Button(action: {
@@ -509,11 +508,9 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(logsManager.getTodayLogs().prefix(5)) { log in
-                        RecentActivityRow(log: log, formatTime: formatTime)
+                        LogEntryRow(entry: log, showRelated: false)
                     }
                 }
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
             }
         }
     }

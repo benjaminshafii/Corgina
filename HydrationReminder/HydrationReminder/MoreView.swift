@@ -8,7 +8,17 @@ struct MoreView: View {
     var body: some View {
         NavigationView {
             List {
-                Section {
+                Section("Health Tracking") {
+                    NavigationLink(destination: SupplementTrackerView()) {
+                        HStack {
+                            Image(systemName: "pills.fill")
+                                .foregroundColor(.green)
+                                .frame(width: 30)
+                            Text("Vitamins & Supplements")
+                            Spacer()
+                        }
+                    }
+                    
                     NavigationLink(destination: LogLedgerView(logsManager: logsManager)) {
                         HStack {
                             Image(systemName: "list.clipboard")

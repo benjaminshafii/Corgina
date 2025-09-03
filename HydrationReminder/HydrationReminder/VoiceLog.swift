@@ -2,12 +2,18 @@ import Foundation
 
 enum LogCategory: String, Codable, CaseIterable {
     case food = "Food"
+    case hydration = "Hydration"
+    case supplements = "Supplements"
     case symptoms = "Symptoms"
     
     var icon: String {
         switch self {
         case .food:
             return "fork.knife"
+        case .hydration:
+            return "drop.fill"
+        case .supplements:
+            return "pills.fill"
         case .symptoms:
             return "heart.text.square"
         }
@@ -17,6 +23,10 @@ enum LogCategory: String, Codable, CaseIterable {
         switch self {
         case .food:
             return "orange"
+        case .hydration:
+            return "blue"
+        case .supplements:
+            return "green"
         case .symptoms:
             return "purple"
         }

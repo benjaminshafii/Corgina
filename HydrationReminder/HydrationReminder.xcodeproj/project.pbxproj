@@ -30,6 +30,10 @@
 		A3655F7B2E67F99D00579475 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F722E67F99D00579475 /* ShareSheet.swift */; };
 		A3655F7F2E67FCA700579475 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */; };
 		A3655F802E67FCA700579475 /* VoiceCommandSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */; };
+		A3655F832E680E9000579475 /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F822E680E9000579475 /* MoreView.swift */; };
+		A3655F872E68859500579475 /* UnifiedActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F852E68859500579475 /* UnifiedActivityRow.swift */; };
+		A3655F882E68859500579475 /* UnifiedActivityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F862E68859500579475 /* UnifiedActivityViewModel.swift */; };
+		A3655F892E68859500579475 /* AsyncTaskManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F842E68859500579475 /* AsyncTaskManager.swift */; };
 		A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */; };
 		A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */; };
 		A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */; };
@@ -65,6 +69,10 @@
 		A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandSheet.swift; sourceTree = "<group>"; };
 		A3655F812E67FDF000579475 /* HydrationReminder.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HydrationReminder.entitlements; sourceTree = "<group>"; };
+		A3655F822E680E9000579475 /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
+		A3655F842E68859500579475 /* AsyncTaskManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncTaskManager.swift; sourceTree = "<group>"; };
+		A3655F852E68859500579475 /* UnifiedActivityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedActivityRow.swift; sourceTree = "<group>"; };
+		A3655F862E68859500579475 /* UnifiedActivityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedActivityViewModel.swift; sourceTree = "<group>"; };
 		A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLog.swift; sourceTree = "<group>"; };
 		A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLogView.swift; sourceTree = "<group>"; };
 		A3C2C12C2E66A286005A322F /* PUQEScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUQEScore.swift; sourceTree = "<group>"; };
@@ -103,6 +111,10 @@
 		A0FFFFFF295B0A6700000001 /* HydrationReminder */ = {
 			isa = PBXGroup;
 			children = (
+				A3655F842E68859500579475 /* AsyncTaskManager.swift */,
+				A3655F852E68859500579475 /* UnifiedActivityRow.swift */,
+				A3655F862E68859500579475 /* UnifiedActivityViewModel.swift */,
+				A3655F822E680E9000579475 /* MoreView.swift */,
 				A3655F812E67FDF000579475 /* HydrationReminder.entitlements */,
 				A3655F7D2E67FCA700579475 /* Preview Content */,
 				A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */,
@@ -244,6 +256,7 @@
 				A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */,
 				A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */,
 				A3655F802E67FCA700579475 /* VoiceCommandSheet.swift in Sources */,
+				A3655F832E680E9000579475 /* MoreView.swift in Sources */,
 				A35075B82E5267C600D2367C /* LogEntryRow.swift in Sources */,
 				A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */,
 				A3C2C1332E66A52B005A322F /* OpenAIManager.swift in Sources */,
@@ -251,6 +264,9 @@
 				A35075BB2E5267C600D2367C /* LogsManager.swift in Sources */,
 				A35075B32E52385200D2367C /* VoiceLogManager.swift in Sources */,
 				A35075AB2E52383A00D2367C /* MainTabView.swift in Sources */,
+				A3655F872E68859500579475 /* UnifiedActivityRow.swift in Sources */,
+				A3655F882E68859500579475 /* UnifiedActivityViewModel.swift in Sources */,
+				A3655F892E68859500579475 /* AsyncTaskManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

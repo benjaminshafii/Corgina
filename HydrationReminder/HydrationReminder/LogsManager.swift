@@ -16,11 +16,16 @@ class LogsManager: ObservableObject {
     
     // MARK: - Quick Logging Methods
     
-    func logFood(notes: String? = nil, source: LogSource = .manual) {
+    func logFood(notes: String? = nil, source: LogSource = .manual, foodName: String? = nil, calories: Int? = nil, protein: Int? = nil, carbs: Int? = nil, fat: Int? = nil) {
         let entry = LogEntry(
             type: .food,
             source: source,
-            notes: notes
+            notes: notes,
+            foodName: foodName,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat
         )
         addLog(entry)
         
@@ -236,7 +241,7 @@ class LogsManager: ObservableObject {
     
     // MARK: - Persistence
     
-    private func saveLogs() {
+    func saveLogs() {
         if let encoded = try? JSONEncoder().encode(logEntries) {
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
         }

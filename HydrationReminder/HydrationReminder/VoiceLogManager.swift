@@ -22,16 +22,22 @@ class VoiceLogManager: NSObject, ObservableObject {
     
     private let userDefaultsKey = "SavedVoiceLogs"
     private let openAIManager = OpenAIManager.shared
-    private let logsManager: LogsManager
-    private let supplementManager: SupplementManager
+    private var logsManager: LogsManager?
+    private var supplementManager: SupplementManager?
     
     override init() {
-        let notificationManager = NotificationManager()
-        self.logsManager = LogsManager(notificationManager: notificationManager)
-        self.supplementManager = SupplementManager(notificationManager: notificationManager)
         super.init()
         loadLogs()
         setupAudioSession()
+    }
+    
+    func configure(logsManager: LogsManager, supplementManager: SupplementManager) {
+        print("🔧 VoiceLogManager.configure() called")
+        print("🔧 LogsManager: \(logsManager)")
+        print("🔧 Current logs count: \(logsManager.logEntries.count)")
+        self.logsManager = logsManager
+        self.supplementManager = supplementManager
+        print("🔧 Configuration complete")
     }
     
     private func setupAudioSession() {
@@ -53,360 +59,264 @@ class VoiceLogManager: NSObject, ObservableObject {
     }
     
     func startRecording() {
-        let audioSession = AVAudioSession.sharedInstance()
+        guard !isRecording else { return }
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let audioFilename = documentsPath.appendingPathComponent("\(UUID().uuidString).m4a")
+        currentRecordingURL = audioFilename
+        
+        let settings = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 12000,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+        ]
         
         do {
-            try audioSession.setActive(true)
-            
-            let fileName = "voicelog_\(UUID().uuidString)_\(Date().timeIntervalSince1970).m4a"
-            let audioURL = getDocumentsDirectory().appendingPathComponent(fileName)
-            
-            let settings: [String: Any] = [
-                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                AVSampleRateKey: 44100,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-            ]
-            
-            audioRecorder = try AVAudioRecorder(url: audioURL, settings: settings)
+            audioRecorder = try AVAudioRecorder(url: audioFilename, settings: settings)
             audioRecorder?.delegate = self
             audioRecorder?.record()
             
             isRecording = true
             recordingStartTime = Date()
-            recordingTime = 0
             
-            // Start timer to update recording time
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                if let startTime = self.recordingStartTime {
-                    self.recordingTime = Date().timeIntervalSince(startTime)
-                }
+            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                guard let self = self, let startTime = self.recordingStartTime else { return }
+                self.recordingTime = Date().timeIntervalSince(startTime)
             }
         } catch {
-            print("Failed to start recording: \(error)")
+            print("Could not start recording: \(error)")
         }
     }
     
     func stopRecording() {
         guard isRecording else { return }
         
-        audioRecorder?.stop()
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-        
         let duration = recordingTime
         
-        if let recorder = audioRecorder {
-            let fileName = recorder.url.lastPathComponent
-            currentRecordingURL = recorder.url
-            
+        audioRecorder?.stop()
+        audioRecorder = nil
+        isRecording = false
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        recordingTime = 0
+        
+        // Process the recorded audio
+        if let url = currentRecordingURL {
+            // Create voice log with the audio file
             let voiceLog = VoiceLog(
                 duration: duration,
                 category: currentCategory,
-                fileName: fileName
+                fileName: url.lastPathComponent
             )
-            
-            voiceLogs.insert(voiceLog, at: 0)
+            voiceLogs.append(voiceLog)
             saveLogs()
             
-            // Process voice for actions if OpenAI API is available
-            if openAIManager.hasAPIKey {
-                processVoiceForActions(audioURL: recorder.url)
-            }
-            
-            // Post notification that a voice log was created
-            NotificationCenter.default.post(
-                name: Notification.Name("VoiceLogCreated"),
-                object: nil,
-                userInfo: ["voiceLog": voiceLog]
-            )
+            // Process with OpenAI
+            processRecordedAudio(at: url, for: voiceLog)
         }
-        
-        isRecording = false
-        recordingTime = 0
-        audioRecorder = nil
     }
     
-    private func processVoiceForActions(audioURL: URL) {
-        Task { @MainActor in
-            isProcessingVoice = true
-            
+    private func processRecordedAudio(at url: URL, for log: VoiceLog) {
+        Task {
             do {
-                let audioData = try Data(contentsOf: audioURL)
+                isProcessingVoice = true
                 
-                // First try to get transcription
+                // Read audio data
+                let audioData = try Data(contentsOf: url)
+                
+                // Transcribe audio
                 let transcription = try await openAIManager.transcribeAudio(audioData: audioData)
-                self.lastTranscription = transcription.text
                 
-                // Then try to extract actions
-                if !transcription.text.isEmpty {
-                    do {
-                        let actions = try await openAIManager.extractVoiceActions(from: transcription.text)
-                        self.detectedActions = actions
-                        
-                        print("Voice: Detected \(actions.count) actions from: '\(transcription.text)'")
-                        
-                        if !actions.isEmpty {
-                            self.showActionConfirmation = true
-                            // Auto-execute ALL actions (removing confidence check for now)
-                            print("Voice: Executing \(actions.count) actions")
-                            for action in actions {
-                                print("Voice: Executing action: \(action.type.rawValue) with confidence \(action.confidence)")
-                                executeAction(action)
-                            }
-                        } else {
-                            print("Voice: No actions detected from transcript")
-                        }
-                    } catch {
-                        // Even if action extraction fails, we still have the transcription
-                        print("Voice: Error extracting actions: \(error)")
-                        self.detectedActions = []
+                await MainActor.run {
+                    self.lastTranscription = transcription.text
+                    
+                    // Update the log with transcription
+                    if let index = self.voiceLogs.firstIndex(where: { $0.id == log.id }) {
+                        self.voiceLogs[index].transcription = transcription.text
+                        self.saveLogs()
                     }
                 }
+                
+                // Extract actions from transcription
+                let actions = try await openAIManager.extractVoiceActions(from: transcription.text)
+                
+                await MainActor.run {
+                    print("📱 Detected \(actions.count) actions from voice")
+                    for (index, action) in actions.enumerated() {
+                        print("📱 Action \(index): type=\(action.type), item=\(action.details.item ?? "nil"), confidence=\(action.confidence)")
+                    }
+                    
+                    self.detectedActions = actions
+                    self.showActionConfirmation = !actions.isEmpty
+                    self.isProcessingVoice = false
+                    
+                    // Don't auto-execute here - let VoiceCommandSheet handle it
+                    // This prevents double execution
+                    // if !actions.isEmpty {
+                    //     print("📱 Auto-executing \(actions.count) actions")
+                    //     self.executeVoiceActions(actions)
+                    // }
+                }
+                
             } catch {
-                print("Error processing voice: \(error)")
-                self.lastTranscription = "Error: Could not transcribe audio. Please check your API key."
-            }
-            
-            isProcessingVoice = false
-        }
-    }
-    
-    func executeAction(_ action: VoiceAction) {
-        print("Voice: executeAction called for \(action.type.rawValue)")
-        
-        switch action.type {
-        case .logWater:
-            // Use default of 8 oz if amount not specified
-            let amountStr = action.details.amount ?? "8"
-            let amount = Int(amountStr) ?? 8
-            let unit = action.details.unit ?? "oz"
-            
-            print("Voice: Logging water - \(amount) \(unit)")
-            logsManager.logWater(amount: amount, unit: unit, source: .voice)
-            showToast("Logged \(amount) \(unit) of water")
-            print("Voice: Water logged successfully")
-            NotificationCenter.default.post(name: Notification.Name("VoiceLogCreated"), object: nil)
-            
-        case .logFood:
-            let foodItem = action.details.item ?? "meal"
-            print("Voice: Logging food - \(foodItem)")
-            
-            // Create a photo food log with AI analysis for voice food
-            Task {
-                await createFoodLogWithMacros(foodItem: foodItem)
-            }
-            
-            logsManager.logFood(notes: foodItem, source: .voice)
-            showToast("Logged food: \(foodItem)")
-            print("Voice: Food logged successfully")
-            NotificationCenter.default.post(name: Notification.Name("VoiceLogCreated"), object: nil)
-            
-        case .logVitamin:
-            if let vitaminName = action.details.vitaminName {
-                supplementManager.logIntakeByName(vitaminName)
-                showToast("Logged vitamin: \(vitaminName)")
-            }
-            
-        case .logSymptom:
-            if let symptoms = action.details.symptoms {
-                let severity = parseSeverity(action.details.severity)
-                for symptom in symptoms {
-                    logsManager.logSymptom(notes: symptom, severity: severity, source: .voice)
+                await MainActor.run {
+                    print("Processing failed: \(error)")
+                    self.lastTranscription = "Failed to process audio"
+                    self.isProcessingVoice = false
                 }
-                showToast("Logged symptoms: \(symptoms.joined(separator: ", "))")
             }
-            
-        case .logPUQE:
-            // Handle PUQE logging
-            if let notes = action.details.notes {
-                NotificationCenter.default.post(
-                    name: Notification.Name("LogPUQEFromVoice"),
-                    object: nil,
-                    userInfo: ["notes": notes]
-                )
-                showToast("PUQE score recorded")
-            }
-            
-        case .unknown:
-            print("Unknown action type")
         }
     }
     
-    private func parseSeverity(_ severityStr: String?) -> Int {
-        guard let severity = severityStr?.lowercased() else { return 3 }
-        
-        switch severity {
-        case "mild", "light", "slight": return 2
-        case "moderate", "medium": return 3
-        case "severe", "heavy", "bad": return 4
-        default: return 3
+    func executeVoiceActions(_ actions: [VoiceAction]) {
+        guard let logsManager = logsManager else {
+            print("❌ CRITICAL: LogsManager not configured in VoiceLogManager!")
+            print("❌ This means voice actions will not be logged!")
+            print("❌ Make sure to call voiceLogManager.configure() with shared managers")
+            return
         }
-    }
-    
-    private func showToast(_ message: String) {
-        NotificationCenter.default.post(
-            name: Notification.Name("ShowToast"),
-            object: nil,
-            userInfo: ["message": message]
-        )
-    }
-    
-    private func createFoodLogWithMacros(foodItem: String) async {
-        // Use OpenAI to estimate macros for the food item
-        let systemPrompt = """
-        Estimate nutritional information for: "\(foodItem)"
         
-        Return JSON with these fields:
-        {
-            "items": [
-                {
-                    "name": "\(foodItem)",
-                    "quantity": "1 serving",
-                    "estimatedCalories": number,
-                    "protein": number (grams),
-                    "carbs": number (grams),
-                    "fat": number (grams),
-                    "fiber": number (grams)
+        print("✅ ExecuteVoiceActions: LogsManager is configured, processing \(actions.count) actions")
+        
+        for action in actions {
+            switch action.type {
+            case .logWater:
+                if let amountStr = action.details.amount,
+                   let amount = Double(amountStr) {
+                    logsManager.logWater(amount: Int(amount), unit: action.details.unit ?? "oz")
+                    // Immediate UI update for water
+                    logsManager.objectWillChange.send()
                 }
-            ],
-            "totalCalories": number,
-            "totalProtein": number,
-            "totalCarbs": number,
-            "totalFat": number,
-            "totalFiber": number
-        }
-        """
-        
-        do {
-            // Get macro estimates from OpenAI
-            let messages: [[String: Any]] = [
-                ["role": "system", "content": systemPrompt]
-            ]
-            
-            let requestBody: [String: Any] = [
-                "model": "gpt-4o-mini",
-                "messages": messages,
-                "max_tokens": 300,
-                "temperature": 0.3,
-                "response_format": ["type": "json_object"]
-            ]
-            
-            var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
-            request.httpMethod = "POST"
-            let apiKey = UserDefaults.standard.string(forKey: "openAIKey") ?? ""
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-            
-            let (data, _) = try await URLSession.shared.data(for: request)
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]],
-               let firstChoice = choices.first,
-               let message = firstChoice["message"] as? [String: Any],
-               let content = message["content"] as? String,
-               let contentData = content.data(using: .utf8),
-               let analysis = try? JSONDecoder().decode(FoodAnalysis.self, from: contentData) {
-                
-                // Create a photo food log with the macro data
-                let photoLog = PhotoFoodLog(
-                    date: Date(),
-                    imageData: Data(), // Empty image data for voice logs
-                    notes: foodItem,
-                    mealType: getMealType(),
-                    aiAnalysis: analysis
-                )
-                
-                // Save to photo log manager
-                let photoLogManager = PhotoFoodLogManager()
-                photoLogManager.photoLogs.append(photoLog)
-                photoLogManager.savePhotoLogs()
-                
-                print("Voice: Added food with macros - Calories: \(analysis.totalCalories ?? 0)")
+            case .logFood:
+                if let foodName = action.details.item {
+                    print("🍔 VoiceLogManager: Processing food action for: \(foodName)")
+                    print("🍔 LogsManager configured: \(logsManager != nil)")
+                    print("🍔 Current log count before: \(logsManager.logEntries.count)")
+                    
+                    // Create log entry immediately with placeholder data
+                    let logId = UUID()
+                    let logEntry = LogEntry(
+                        id: logId,
+                        date: Date(),
+                        type: .food,
+                        source: .voice,
+                        notes: "Processing nutrition data...",
+                        foodName: foodName,
+                        calories: 0,  // Placeholder
+                        protein: 0,   // Placeholder
+                        carbs: 0,     // Placeholder
+                        fat: 0        // Placeholder
+                    )
+                    
+                    // Add to logs immediately
+                    logsManager.logEntries.append(logEntry)
+                    logsManager.saveLogs()
+                    logsManager.objectWillChange.send()
+                    
+                    print("🍔 Log count after append: \(logsManager.logEntries.count)")
+                    print("🍔 Today's logs count: \(logsManager.getTodayLogs().count)")
+                    print("🍔 Today's food count: \(logsManager.getTodayFoodCount())")
+                    
+                    // Queue async task for macro fetching
+                    Task {
+                        await AsyncTaskManager.queueFoodMacrosFetch(foodName: foodName, logId: logId)
+                    }
+                } else {
+                    print("⚠️ VoiceLogManager: Food action has no item name")
+                }
+            case .logVitamin:
+                if let vitaminName = action.details.item,
+                   let supplementManager = supplementManager {
+                    // Mark supplement as taken by name
+                    supplementManager.logIntakeByName(vitaminName, taken: true)
+                }
+            case .logSymptom:
+                // Log symptoms
+                if let symptoms = action.details.symptoms, !symptoms.isEmpty {
+                    let symptomText = symptoms.joined(separator: ", ")
+                    print("📝 Logging symptoms: \(symptomText)")
+                    
+                    // Create symptom log entry
+                    let logEntry = LogEntry(
+                        id: UUID(),
+                        date: Date(),
+                        type: .symptom,
+                        source: .voice,
+                        notes: symptomText,
+                        severity: action.details.severity.flatMap { Int($0) }
+                    )
+                    
+                    logsManager.logEntries.append(logEntry)
+                    logsManager.saveLogs()
+                    logsManager.objectWillChange.send()
+                    
+                    print("📝 Symptom logged successfully")
+                } else {
+                    print("⚠️ No symptoms found in action details")
+                }
+            case .logPUQE:
+                // Handle PUQE logging if needed
+                break
+            case .unknown:
+                break
             }
-        } catch {
-            print("Voice: Error getting macros for food: \(error)")
         }
     }
     
-    private func getMealType() -> MealType {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<11:
-            return .breakfast
-        case 11..<15:
-            return .lunch
-        case 15..<21:
-            return .dinner
-        default:
-            return .snack
-        }
-    }
-}
-    
-    func playAudio(log: VoiceLog) {
-        stopAudio()
-        
-        let audioURL = getDocumentsDirectory().appendingPathComponent(log.fileName)
-        
-        do {
-            // Switch to playback mode for louder volume
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-            
-            audioPlayer = try AVAudioPlayer(contentsOf: audioURL)
-            audioPlayer?.delegate = self
-            audioPlayer?.volume = 1.0  // Set maximum volume
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-            isPlaying = true
-            currentPlayingID = log.id
-        } catch {
-            print("Failed to play audio: \(error)")
-        }
-    }
-    
-    func stopAudio() {
-        audioPlayer?.stop()
-        isPlaying = false
-        currentPlayingID = nil
-        
-        // Switch back to playAndRecord for recording capability
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Failed to reset audio session: \(error)")
-        }
-    }
-    
-    func deleteLog(_ log: VoiceLog) {
-        // Stop playing if this log is currently playing
-        if currentPlayingID == log.id {
-            stopAudio()
-        }
-        
-        // Delete the audio file
-        let audioURL = getDocumentsDirectory().appendingPathComponent(log.fileName)
-        try? FileManager.default.removeItem(at: audioURL)
-        
-        // Remove from array
+    func deleteVoiceLog(_ log: VoiceLog) {
         voiceLogs.removeAll { $0.id == log.id }
+        
+        // Delete audio file if it exists
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documentsPath.appendingPathComponent(log.fileName)
+        try? FileManager.default.removeItem(at: fileURL)
+        
         saveLogs()
     }
     
-    private func getDocumentsDirectory() -> URL {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let documentsDirectory = paths[0]
+    func stopAudio() {
+        if isPlaying {
+            audioPlayer?.stop()
+            isPlaying = false
+            currentPlayingID = nil
+        }
+    }
+    
+    func playAudio(log: VoiceLog) {
+        playRecording(for: log)
+    }
+    
+    func playRecording(for log: VoiceLog) {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let url = documentsPath.appendingPathComponent(log.fileName)
         
-        // Create VoiceLogs subdirectory if it doesn't exist
-        let voiceLogsDirectory = documentsDirectory.appendingPathComponent("VoiceLogs")
-        if !FileManager.default.fileExists(atPath: voiceLogsDirectory.path) {
-            try? FileManager.default.createDirectory(at: voiceLogsDirectory, withIntermediateDirectories: true)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("Audio file not found")
+            return
         }
         
-        return voiceLogsDirectory
+        if isPlaying && currentPlayingID == log.id {
+            // Stop playing
+            audioPlayer?.stop()
+            isPlaying = false
+            currentPlayingID = nil
+        } else {
+            // Start playing
+            do {
+                // Switch to playback mode
+                try AVAudioSession.sharedInstance().setCategory(.playback)
+                try AVAudioSession.sharedInstance().setActive(true)
+                
+                audioPlayer = try AVAudioPlayer(contentsOf: url)
+                audioPlayer?.delegate = self
+                audioPlayer?.play()
+                isPlaying = true
+                currentPlayingID = log.id
+            } catch {
+                print("Could not play recording: \(error)")
+            }
+        }
     }
     
     private func saveLogs() {
@@ -426,7 +336,8 @@ class VoiceLogManager: NSObject, ObservableObject {
         guard let category = category else { return voiceLogs }
         return voiceLogs.filter { $0.category == category }
     }
-    
+}
+
 extension VoiceLogManager: AVAudioRecorderDelegate {
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         if !flag {

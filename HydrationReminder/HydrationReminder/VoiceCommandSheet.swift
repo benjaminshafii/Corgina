@@ -140,7 +140,7 @@ struct VoiceCommandSheet: View {
                 
                 // Detected Actions
                 if !voiceLogManager.detectedActions.isEmpty && !isListening {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Detected Actions:")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -163,11 +163,59 @@ struct VoiceCommandSheet: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        
+                        // Action buttons
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                voiceLogManager.detectedActions = []
+                                voiceLogManager.lastTranscription = nil
+                            }) {
+                                Text("Cancel")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                            
+                            Button(action: {
+                                // Execute the actions
+                                voiceLogManager.executeVoiceActions(voiceLogManager.detectedActions)
+                                voiceLogManager.detectedActions = []
+                                onDismiss()
+                            }) {
+                                Text("Confirm & Log")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(Color.green)
+                                    .cornerRadius(8)
+                            }
+                        }
+                        
+                        Text("Auto-logging in 3 seconds...")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .italic()
                     }
                     .padding()
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(10)
                     .padding(.horizontal)
+                    .onAppear {
+                        // Auto-execute actions after 3 seconds if not cancelled
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            if !voiceLogManager.detectedActions.isEmpty {
+                                voiceLogManager.executeVoiceActions(voiceLogManager.detectedActions)
+                                voiceLogManager.detectedActions = []
+                                onDismiss()
+                            }
+                        }
+                    }
                 }
                 
                 // Example Commands

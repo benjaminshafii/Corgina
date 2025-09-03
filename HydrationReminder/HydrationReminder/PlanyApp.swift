@@ -4,19 +4,65 @@ import UserNotifications
 @main
 struct PlanyApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var notificationManager = NotificationManager()
+    @StateObject private var logsManager: LogsManager
+    
+    init() {
+        let nm = NotificationManager()
+        let lm = LogsManager(notificationManager: nm)
+        _notificationManager = StateObject(wrappedValue: nm)
+        _logsManager = StateObject(wrappedValue: lm)
+        
+        // Configure AsyncTaskManager with the shared managers
+        Task {
+            await AsyncTaskManager.configure(
+                logsManager: lm,
+                openAIManager: OpenAIManager.shared
+            )
+            
+            // Process any pending tasks
+            await AsyncTaskManager.processPending()
+        }
+    }
     
     var body: some Scene {
         WindowGroup {
             MainTabView()
+                .environmentObject(notificationManager)
+                .environmentObject(logsManager)
+                .onAppear {
+                    // Configure AsyncTaskManager when app appears (backup)
+                    Task {
+                        await AsyncTaskManager.configure(
+                            logsManager: logsManager,
+                            openAIManager: OpenAIManager.shared
+                        )
+                        await AsyncTaskManager.processPending()
+                    }
+                }
         }
     }
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let notificationManager = NotificationManager()
+    let logsManager = LogsManager(notificationManager: NotificationManager())
+    let openAIManager = OpenAIManager.shared
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        
+        // Configure AsyncTaskManager
+        Task {
+            await AsyncTaskManager.configure(
+                logsManager: logsManager,
+                openAIManager: openAIManager
+            )
+            
+            // Process any pending tasks from previous sessions
+            await AsyncTaskManager.processPending()
+        }
+        
         return true
     }
     
@@ -49,5 +95,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Check and reset daily badge when app becomes active
         notificationManager.checkAndResetDailyBadge()
+        
+        // Process pending async tasks when app becomes active
+        Task {
+            await AsyncTaskManager.processPending()
+        }
     }
 }

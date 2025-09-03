@@ -8,7 +8,7 @@ struct FoodAnalysis: Codable {
     let totalCarbs: Double?
     let totalFat: Double?
     let totalFiber: Double?
-    
+
     struct FoodItem: Codable {
         let name: String
         let quantity: String
@@ -29,11 +29,11 @@ struct VoiceAction: Codable, Equatable {
         case logPUQE = "log_puqe"
         case unknown = "unknown"
     }
-    
+
     let type: ActionType
     let details: ActionDetails
     let confidence: Double
-    
+
     struct ActionDetails: Codable, Equatable {
         let item: String?
         let amount: String?
@@ -64,469 +64,396 @@ class OpenAIManager: ObservableObject {
     static let shared = OpenAIManager()
     private let baseURL = "https://api.openai.com/v1/chat/completions"
     private let whisperURL = "https://api.openai.com/v1/audio/transcriptions"
-    
+
     @AppStorage("openAIKey") private var apiKey: String = ""
     @Published var isProcessing = false
     @Published var lastError: String?
     @Published var lastTranscription: String?
     @Published var detectedActions: [VoiceAction] = []
-    
+
     private init() {}
-    
+
     var hasAPIKey: Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    
+
     func setAPIKey(_ key: String) {
         apiKey = key
     }
-    
+
     func analyzeFood(imageData: Data) async throws -> FoodAnalysis {
         guard hasAPIKey else {
             throw OpenAIError.noAPIKey
         }
-        
+
         isProcessing = true
-        defer { 
+        defer {
             DispatchQueue.main.async {
                 self.isProcessing = false
             }
         }
-        
+
         let base64Image = imageData.base64EncodedString()
-        
+
         let messages: [[String: Any]] = [
             [
                 "role": "user",
                 "content": [
-                    [
-                        "type": "text",
-                        "text": """
-                        Analyze this food image and provide a structured JSON response with the following information:
-                        1. Identify all food items visible
-                        2. Estimate the quantity/portion size of each item
-                        3. Estimate calories for each item
-                        4. Estimate macronutrients (protein, carbs, fat, fiber) in grams for each item
-                        5. Calculate totals for all items combined
-                        
-                        Return ONLY valid JSON in this exact format:
-                        {
-                            "items": [
-                                {
-                                    "name": "food name",
-                                    "quantity": "estimated amount with units",
-                                    "estimatedCalories": number or null,
-                                    "protein": number or null,
-                                    "carbs": number or null,
-                                    "fat": number or null,
-                                    "fiber": number or null
-                                }
-                            ],
-                            "totalCalories": number or null,
-                            "totalProtein": number or null,
-                            "totalCarbs": number or null,
-                            "totalFat": number or null,
-                            "totalFiber": number or null
-                        }
-                        
-                        Be as accurate as possible with your estimates. If you cannot determine a value, use null.
-                        """
-                    ],
-                    [
-                        "type": "image_url",
-                        "image_url": [
-                            "url": "data:image/jpeg;base64,\(base64Image)"
-                        ]
-                    ]
+                    ["type": "text", "text": "Analyze this food image and provide nutritional information. Return JSON with: items array containing food items with name, quantity, estimatedCalories, protein, carbs, fat, fiber. Also include totalCalories, totalProtein, totalCarbs, totalFat, totalFiber."],
+                    ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64Image)"]]
                 ]
             ]
         ]
-        
+
         let requestBody: [String: Any] = [
             "model": "gpt-4o",
             "messages": messages,
-            "max_tokens": 500,
-            "temperature": 0.3
+            "temperature": 0.3,
+            "max_tokens": 1000
         ]
-        
+
+        let data = try JSONSerialization.data(withJSONObject: requestBody)
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+        request.httpBody = data
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
-        
-        if httpResponse.statusCode != 200 {
-            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = errorData["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw OpenAIError.apiError(message)
-            }
+
+        guard httpResponse.statusCode == 200 else {
             throw OpenAIError.httpError(httpResponse.statusCode)
         }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        let cleanedContent = content
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let content = json?["choices"] as? [[String: Any]]
+        let message = content?.first?["message"] as? [String: Any]
+        let text = message?["content"] as? String ?? ""
+
+        let cleanedContent = text
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard let contentData = cleanedContent.data(using: .utf8) else {
+
+        do {
+            let data = cleanedContent.data(using: .utf8)!
+            return try JSONDecoder().decode(FoodAnalysis.self, from: data)
+        } catch {
+            print("JSON parsing error: \(error)")
             throw OpenAIError.invalidResponse
         }
-        
-        let analysis = try JSONDecoder().decode(FoodAnalysis.self, from: contentData)
-        return analysis
     }
-    
+
     func transcribeAudio(audioData: Data) async throws -> VoiceTranscription {
         guard hasAPIKey else {
             throw OpenAIError.noAPIKey
         }
-        
+
         isProcessing = true
-        defer { 
+        defer {
             DispatchQueue.main.async {
                 self.isProcessing = false
             }
         }
-        
+
         let boundary = UUID().uuidString
         var request = URLRequest(url: URL(string: whisperURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
+
         var body = Data()
-        
+
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
         body.append(audioData)
         body.append("\r\n".data(using: .utf8)!)
-        
+
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
-        
+
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
         body.append("json\r\n".data(using: .utf8)!)
-        
+
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
+
         request.httpBody = body
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
-        
-        if httpResponse.statusCode != 200 {
+
+        guard httpResponse.statusCode == 200 else {
             throw OpenAIError.httpError(httpResponse.statusCode)
         }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let text = json["text"] as? String else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        DispatchQueue.main.async {
-            self.lastTranscription = text
-        }
-        
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let text = json?["text"] as? String ?? ""
+
         return VoiceTranscription(
             text: text,
-            duration: json["duration"] as? Double,
-            language: json["language"] as? String
+            duration: json?["duration"] as? Double,
+            language: json?["language"] as? String
         )
     }
-    
+
     func extractVoiceActions(from transcript: String) async throws -> [VoiceAction] {
         guard hasAPIKey else {
             throw OpenAIError.noAPIKey
         }
-        
+
         isProcessing = true
-        defer { 
+        defer {
             DispatchQueue.main.async {
                 self.isProcessing = false
             }
         }
-        
-        let systemPrompt = """
-        You are a pregnancy tracking assistant that extracts structured actions from voice transcripts.
-        
-        Extract ALL actions mentioned in the transcript. Be very liberal in interpretation - if something sounds like it could be an action, extract it.
-        
-        Action types to detect:
-        1. Water/drink intake - any mention of drinking water, fluids, beverages
-        2. Food consumption - any mention of eating or food items
-        3. Symptoms - nausea, vomiting, headache, fatigue, dizziness, etc.
-        4. Vitamin/supplement intake - prenatal, iron, vitamin D, DHA, folic acid, etc.
-        5. PUQE symptoms - vomiting, throwing up, retching, severe nausea
-        
-        IMPORTANT: Always return a JSON object with "actions" array, even if empty.
-        
-        Response format:
-        {
-            "actions": [
-                {
-                    "type": "log_water",
-                    "details": {
-                        "amount": "16",
-                        "unit": "oz",
-                        "item": "water"
-                    },
-                    "confidence": 0.95
-                }
-            ]
-        }
-        
-        Examples that MUST work:
-        - "I drank 16 ounces of water" → log_water
-        - "drank water" → log_water (default 8 oz)
-        - "had some water" → log_water
-        - "I took my prenatal" → log_vitamin
-        - "took vitamins" → log_vitamin
-        - "feeling nauseous" → log_symptom
-        - "I ate breakfast" → log_food
-        - "had eggs" → log_food
+
+        let prompt = """
+        Analyze this voice transcript and extract any actions the user wants to perform.
+        Return JSON array of actions with type, details, and confidence.
+
+        Types: log_water, log_food, log_symptom, log_vitamin, log_puqe, unknown
+
+        For log_water: put amount and unit in details
+        For log_food: put food name in "item" field in details
+        For log_vitamin: put vitamin name in "vitaminName" field in details  
+        For log_symptom: put symptoms array in "symptoms" field in details
+
+        Transcript: "\(transcript)"
+
+        Example responses:
+        - Water: [{"type": "log_water", "details": {"amount": "8", "unit": "oz"}, "confidence": 0.9}]
+        - Food: [{"type": "log_food", "details": {"item": "chicken sandwich", "mealType": "lunch"}, "confidence": 0.85}]
+        - Vitamin: [{"type": "log_vitamin", "details": {"vitaminName": "prenatal vitamin"}, "confidence": 0.95}]
         """
-        
-        let userPrompt = """
-        The user said: "\(transcript)"
-        
-        What actions should I log? Be very liberal - if it sounds like they did something, log it.
-        """
-        
-        let messages: [[String: Any]] = [
-            ["role": "system", "content": systemPrompt],
-            ["role": "user", "content": userPrompt]
+
+        let messages = [
+            ["role": "system", "content": "You are an AI assistant that extracts actions from voice transcripts. Always respond with valid JSON only."],
+            ["role": "user", "content": prompt]
         ]
-        
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o", // Using GPT-4o (latest available model)
+            "model": "gpt-4o",
             "messages": messages,
-            "max_tokens": 1000,
-            "temperature": 0.1, // Lower temperature for more consistent parsing
-            "response_format": ["type": "json_object"]
+            "temperature": 0.3,
+            "max_tokens": 500
         ]
-        
+
+        let data = try JSONSerialization.data(withJSONObject: requestBody)
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+        request.httpBody = data
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
-        
-        if httpResponse.statusCode != 200 {
+
+        guard httpResponse.statusCode == 200 else {
             throw OpenAIError.httpError(httpResponse.statusCode)
         }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        let cleanedContent = content
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let content = json?["choices"] as? [[String: Any]]
+        let message = content?.first?["message"] as? [String: Any]
+        let text = message?["content"] as? String ?? ""
+
+        let cleanedContent = text
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Debug: Print the cleaned content to see what we're getting
-        print("GPT-5 Response: \(cleanedContent)")
-        
-        guard let contentData = cleanedContent.data(using: .utf8) else {
-            print("Failed to convert to data: \(cleanedContent)")
-            throw OpenAIError.invalidResponse
-        }
-        
-        // Try to parse as JSON with "actions" array
+
         do {
-            if let actionsJson = try JSONSerialization.jsonObject(with: contentData) as? [String: Any] {
-                print("Parsed JSON: \(actionsJson)")
-                
-                if let actionsArray = actionsJson["actions"] as? [[String: Any]] {
-                    print("Found \(actionsArray.count) actions")
-                    
-                    let actions = actionsArray.compactMap { actionDict -> VoiceAction? in
-                        do {
-                            let actionData = try JSONSerialization.data(withJSONObject: actionDict)
-                            let action = try JSONDecoder().decode(VoiceAction.self, from: actionData)
-                            print("Decoded action: \(action.type.rawValue)")
-                            return action
-                        } catch {
-                            print("Failed to decode action: \(error), dict: \(actionDict)")
-                            return nil
-                        }
-                    }
-                    
-                    DispatchQueue.main.async {
-                        self.detectedActions = actions
-                    }
-                    
-                    return actions
-                }
-            }
-            
-            // Try parsing as array directly
-            if let actionsArray = try JSONSerialization.jsonObject(with: contentData) as? [[String: Any]] {
-                print("Parsed as direct array with \(actionsArray.count) actions")
-                
-                let actions = actionsArray.compactMap { actionDict -> VoiceAction? in
-                    do {
-                        let actionData = try JSONSerialization.data(withJSONObject: actionDict)
-                        return try JSONDecoder().decode(VoiceAction.self, from: actionData)
-                    } catch {
-                        print("Failed to decode action from array: \(error)")
-                        return nil
-                    }
-                }
-                
-                DispatchQueue.main.async {
-                    self.detectedActions = actions
-                }
-                
-                return actions
-            }
+            let data = cleanedContent.data(using: .utf8)!
+            return try JSONDecoder().decode([VoiceAction].self, from: data)
         } catch {
             print("JSON parsing error: \(error)")
+            print("No actions could be extracted from: \(cleanedContent)")
+            return []
         }
-        
-        print("No actions could be extracted from: \(cleanedContent)")
-        return []
     }
-    
-    func transcribeAndExtractActions(audioData: Data) async throws -> [VoiceAction] {
-        let transcription = try await transcribeAudio(audioData: audioData)
-        return try await extractVoiceActions(from: transcription.text)
+
+    struct FoodMacros {
+        let calories: Int
+        let protein: Int
+        let carbs: Int
+        let fat: Int
     }
-    
-    func generateFoodSuggestions(puqeScore: Int, recentFoods: [String]) async throws -> [FoodSuggestion] {
+
+    func estimateFoodMacros(foodName: String) async throws -> FoodMacros {
         guard hasAPIKey else {
             throw OpenAIError.noAPIKey
         }
-        
-        let systemPrompt = """
-        You are a pregnancy nutrition expert. Based on a PUQE score and recent foods, suggest foods that might help with nausea.
-        
-        PUQE Score interpretation:
-        - 3-6: Mild nausea
-        - 7-12: Moderate nausea  
-        - 13-15: Severe nausea
-        
-        Suggest pregnancy-safe foods that are:
-        - Easy to digest
-        - High in necessary nutrients
-        - Known to help with nausea
-        - Practical and easy to prepare
-        
-        Return JSON array with 5 suggestions.
+
+        let prompt = """
+        Estimate the nutritional macros for: \(foodName)
+
+        Provide estimates for a typical serving size. Return JSON with:
+        {
+            "calories": 250,
+            "protein": 20,
+            "carbs": 30,
+            "fat": 8
+        }
+
+        Provide reasonable estimates based on typical portion sizes.
         """
-        
-        let userPrompt = """
-        PUQE Score: \(puqeScore)
-        Recent foods that may have triggered symptoms: \(recentFoods.joined(separator: ", "))
-        
-        Suggest 5 foods that might help. For each include:
-        - food: name of the food
-        - reason: why it might help
-        - nutritionalBenefit: key nutrients
-        - preparationTip: how to prepare for maximum benefit
-        - avoidIfHigh: true if should avoid with high PUQE
-        """
-        
-        let messages: [[String: Any]] = [
-            ["role": "system", "content": systemPrompt],
-            ["role": "user", "content": userPrompt]
+
+        let messages = [
+            ["role": "system", "content": "You are a nutrition expert that provides accurate macro estimates for foods. Always respond with valid JSON only."],
+            ["role": "user", "content": prompt]
         ]
-        
+
         let requestBody: [String: Any] = [
-            "model": "gpt-5",
+            "model": "gpt-4o",
             "messages": messages,
-            "max_tokens": 1000,
             "temperature": 0.3,
-            "response_format": ["type": "json_object"]
+            "max_tokens": 200
         ]
-        
+
+        let data = try JSONSerialization.data(withJSONObject: requestBody)
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
+        request.httpBody = data
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
-        
-        if httpResponse.statusCode != 200 {
+
+        guard httpResponse.statusCode == 200 else {
             throw OpenAIError.httpError(httpResponse.statusCode)
         }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw OpenAIError.invalidResponse
+
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let content = json?["choices"] as? [[String: Any]]
+        let message = content?.first?["message"] as? [String: Any]
+        let text = message?["content"] as? String ?? ""
+
+        let cleanedContent = text
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            let data = cleanedContent.data(using: .utf8)!
+            let result = try JSONDecoder().decode([String: Int].self, from: data)
+            return FoodMacros(
+                calories: result["calories"] ?? 100,
+                protein: result["protein"] ?? 5,
+                carbs: result["carbs"] ?? 10,
+                fat: result["fat"] ?? 3
+            )
+        } catch {
+            print("JSON parsing error: \(error)")
+            // Return default values if parsing fails
+            return FoodMacros(calories: 100, protein: 5, carbs: 10, fat: 3)
         }
-        
-        guard let contentData = content.data(using: .utf8),
-              let suggestionsJson = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any],
-              let suggestionsArray = suggestionsJson["suggestions"] as? [[String: Any]] ?? suggestionsJson["foods"] as? [[String: Any]] else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        let suggestions = try suggestionsArray.compactMap { suggestionDict -> FoodSuggestion? in
-            guard let suggestionData = try? JSONSerialization.data(withJSONObject: suggestionDict) else { return nil }
-            return try? JSONDecoder().decode(FoodSuggestion.self, from: suggestionData)
-        }
-        
-        return suggestions
     }
-    
+
+    func generateFoodSuggestions(nauseaLevel: Int, preferences: [String] = []) async throws -> [FoodSuggestion] {
+        guard hasAPIKey else {
+            throw OpenAIError.noAPIKey
+        }
+
+        let prompt = """
+        Suggest foods for a pregnant person with nausea level \(nauseaLevel)/10.
+        Consider these preferences: \(preferences.joined(separator: ", "))
+
+        Return 5 food suggestions in JSON format with:
+        - food: name of the food
+        - reason: why it's good for nausea
+        - nutritionalBenefit: key nutrients
+        - preparationTip: how to prepare it
+        - avoidIfHigh: true if should avoid with high nausea
+        """
+
+        let messages = [
+            ["role": "system", "content": "You are a nutrition expert specializing in pregnancy nutrition. Always respond with valid JSON only."],
+            ["role": "user", "content": prompt]
+        ]
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 800
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: requestBody)
+        var request = URLRequest(url: URL(string: baseURL)!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw OpenAIError.httpError(httpResponse.statusCode)
+        }
+
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let content = json?["choices"] as? [[String: Any]]
+        let message = content?.first?["message"] as? [String: Any]
+        let text = message?["content"] as? String ?? ""
+
+        let cleanedContent = text
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            let data = cleanedContent.data(using: .utf8)!
+            return try JSONDecoder().decode([FoodSuggestion].self, from: data)
+        } catch {
+            print("JSON parsing error: \(error)")
+            return []
+        }
+    }
+
     enum OpenAIError: LocalizedError {
         case noAPIKey
         case invalidResponse
         case httpError(Int)
         case apiError(String)
-        
+        case invalidRequest
+        case networkError
+
         var errorDescription: String? {
             switch self {
             case .noAPIKey:
-                return "OpenAI API key not configured. Please add it in Settings."
+                return "OpenAI API key is required"
             case .invalidResponse:
-                return "Invalid response from OpenAI"
+                return "Invalid response from OpenAI API"
             case .httpError(let code):
                 return "HTTP error: \(code)"
             case .apiError(let message):
                 return "API error: \(message)"
+            case .invalidRequest:
+                return "Invalid request"
+            case .networkError:
+                return "Network error occurred"
             }
         }
     }

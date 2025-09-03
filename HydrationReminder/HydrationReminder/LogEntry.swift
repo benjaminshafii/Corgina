@@ -52,6 +52,13 @@ struct LogEntry: Identifiable, Codable {
     var amount: String?  // For drinks: "8 oz", "250ml", etc.
     var severity: Int?   // For symptoms/puke: 1-5 scale
     
+    // Food macros
+    var foodName: String?
+    var calories: Int?
+    var protein: Int?
+    var carbs: Int?
+    var fat: Int?
+    
     init(
         id: UUID = UUID(),
         date: Date = Date(),
@@ -61,7 +68,12 @@ struct LogEntry: Identifiable, Codable {
         voiceLogId: UUID? = nil,
         relatedLogIds: [UUID] = [],
         amount: String? = nil,
-        severity: Int? = nil
+        severity: Int? = nil,
+        foodName: String? = nil,
+        calories: Int? = nil,
+        protein: Int? = nil,
+        carbs: Int? = nil,
+        fat: Int? = nil
     ) {
         self.id = id
         self.date = date
@@ -72,6 +84,11 @@ struct LogEntry: Identifiable, Codable {
         self.relatedLogIds = relatedLogIds
         self.amount = amount
         self.severity = severity
+        self.foodName = foodName
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fat = fat
     }
     
     var formattedDate: String {

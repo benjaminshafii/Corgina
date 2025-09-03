@@ -45,11 +45,49 @@ struct LogEntryRow: View {
                         }
                     }
                     
+                    // Show food name if available
+                    if let foodName = entry.foodName {
+                        Text(foodName)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .fontWeight(.medium)
+                    }
+                    
                     if let notes = entry.notes {
                         Text(notes)
                             .font(.subheadline)
                             .foregroundColor(.primary)
                             .lineLimit(2)
+                    }
+                    
+                    // Show macros for food entries
+                    if entry.type == .food && (entry.calories != nil || entry.protein != nil) {
+                        HStack(spacing: 12) {
+                            if let calories = entry.calories {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "flame.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                    Text("\(calories)")
+                                        .font(.caption)
+                                }
+                            }
+                            if let protein = entry.protein {
+                                Text("P: \(protein)g")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                            if let carbs = entry.carbs {
+                                Text("C: \(carbs)g")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            if let fat = entry.fat {
+                                Text("F: \(fat)g")
+                                    .font(.caption)
+                                    .foregroundColor(.yellow)
+                            }
+                        }
                     }
                     
                     HStack(spacing: 12) {

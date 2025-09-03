@@ -192,8 +192,8 @@ struct PUQEFoodSuggestionsView: View {
         do {
             let recentFoods = getRecentFoodNames()
             suggestions = try await openAIManager.generateFoodSuggestions(
-                puqeScore: puqeScore.totalScore,
-                recentFoods: recentFoods
+                nauseaLevel: puqeScore.totalScore,
+                preferences: recentFoods
             )
         } catch {
             errorMessage = error.localizedDescription

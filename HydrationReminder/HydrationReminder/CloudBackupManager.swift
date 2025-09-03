@@ -11,7 +11,7 @@ class CloudBackupManager: ObservableObject {
     @Published var backupProgress: Double = 0
     @Published var errorMessage: String?
     
-    private let container = CKContainer(identifier: "iCloud.com.pregnancytracker")
+    private let container = CKContainer.default() // Use default container
     private let database: CKDatabase
     private let recordZone = CKRecordZone(zoneName: "PregnancyData")
     private let userDefaultsKey = "CloudBackupEnabled"
@@ -28,25 +28,32 @@ class CloudBackupManager: ObservableObject {
     private init() {
         self.database = container.privateCloudDatabase
         loadSettings()
-        setupCloudKit()
+        
+        // Only setup CloudKit if explicitly enabled by user
+        if isBackupEnabled {
+            setupCloudKit()
+        }
     }
     
     private func setupCloudKit() {
-        // Create custom zone if needed
-        database.save(recordZone) { _, error in
-            if let error = error as? CKError, error.code != .zoneNotFound {
-                print("Error creating zone: \(error)")
-            }
-        }
-        
-        // Check iCloud availability
+        // Check if CloudKit is available before proceeding
         CKContainer.default().accountStatus { status, error in
             DispatchQueue.main.async {
                 if status == .available {
+                    // Only setup CloudKit if available
+                    self.database.save(self.recordZone) { _, error in
+                        if let error = error as? CKError, error.code != .zoneNotFound {
+                            print("Error creating zone: \(error)")
+                        }
+                    }
                     self.setupSubscriptions()
+                } else if status == .noAccount {
+                    self.isBackupEnabled = false
+                    self.errorMessage = "Please sign in to iCloud in Settings to enable backup."
                 } else {
                     self.isBackupEnabled = false
-                    self.errorMessage = "iCloud not available. Please sign in to iCloud in Settings."
+                    self.errorMessage = "iCloud not available. Status: \(status.rawValue)"
+                    print("CloudKit status: \(status.rawValue), error: \(error?.localizedDescription ?? "none")")
                 }
             }
         }

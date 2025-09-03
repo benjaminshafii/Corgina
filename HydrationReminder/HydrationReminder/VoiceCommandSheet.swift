@@ -19,7 +19,7 @@ struct VoiceCommandSheet: View {
                         Circle()
                             .stroke(Color.blue.opacity(0.3), lineWidth: 2)
                             .scaleEffect(animationScale)
-                            .opacity(2 - animationScale)
+                            .opacity(Double(2 - animationScale))
                             .animation(
                                 Animation.easeOut(duration: 1)
                                     .repeatForever(autoreverses: false),
@@ -29,7 +29,7 @@ struct VoiceCommandSheet: View {
                         Circle()
                             .stroke(Color.blue.opacity(0.3), lineWidth: 2)
                             .scaleEffect(animationScale * 0.8)
-                            .opacity(2 - animationScale * 0.8)
+                            .opacity(Double(2 - animationScale * 0.8))
                             .animation(
                                 Animation.easeOut(duration: 1)
                                     .repeatForever(autoreverses: false)
@@ -171,8 +171,8 @@ struct VoiceCommandSheet: View {
                 stopRecording()
             }
         }
-        .onChange(of: voiceLogManager.detectedActions) { _ in
-            if !voiceLogManager.detectedActions.isEmpty {
+        .onReceive(voiceLogManager.$detectedActions) { actions in
+            if !actions.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     onDismiss()
                 }

@@ -28,6 +28,8 @@
 		A3655F792E67F99D00579475 /* Supplement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F732E67F99D00579475 /* Supplement.swift */; };
 		A3655F7A2E67F99D00579475 /* CloudBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F702E67F99D00579475 /* CloudBackupManager.swift */; };
 		A3655F7B2E67F99D00579475 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F722E67F99D00579475 /* ShareSheet.swift */; };
+		A3655F7F2E67FCA700579475 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */; };
+		A3655F802E67FCA700579475 /* VoiceCommandSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */; };
 		A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */; };
 		A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */; };
 		A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */; };
@@ -60,6 +62,8 @@
 		A3655F732E67F99D00579475 /* Supplement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Supplement.swift; sourceTree = "<group>"; };
 		A3655F742E67F99D00579475 /* SupplementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementManager.swift; sourceTree = "<group>"; };
 		A3655F752E67F99D00579475 /* SupplementTrackerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementTrackerView.swift; sourceTree = "<group>"; };
+		A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandSheet.swift; sourceTree = "<group>"; };
 		A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLog.swift; sourceTree = "<group>"; };
 		A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFoodLogView.swift; sourceTree = "<group>"; };
 		A3C2C12C2E66A286005A322F /* PUQEScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUQEScore.swift; sourceTree = "<group>"; };
@@ -98,6 +102,8 @@
 		A0FFFFFF295B0A6700000001 /* HydrationReminder */ = {
 			isa = PBXGroup;
 			children = (
+				A3655F7D2E67FCA700579475 /* Preview Content */,
+				A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */,
 				A3655F702E67F99D00579475 /* CloudBackupManager.swift */,
 				A3655F712E67F99D00579475 /* PUQEFoodSuggestionsView.swift */,
 				A3655F722E67F99D00579475 /* ShareSheet.swift */,
@@ -134,6 +140,14 @@
 			isa = PBXGroup;
 			children = (
 				A1000007295B0A6900000001 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		A3655F7D2E67FCA700579475 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
 			sourceTree = "<group>";
@@ -197,6 +211,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000008295B0A6900000001 /* Preview Assets.xcassets in Resources */,
+				A3655F7F2E67FCA700579475 /* Preview Assets.xcassets in Resources */,
 				A1000005295B0A6900000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -226,6 +241,7 @@
 				A35075B02E52385200D2367C /* VoiceLog.swift in Sources */,
 				A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */,
 				A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */,
+				A3655F802E67FCA700579475 /* VoiceCommandSheet.swift in Sources */,
 				A35075B82E5267C600D2367C /* LogEntryRow.swift in Sources */,
 				A35075B92E5267C600D2367C /* LogLedgerView.swift in Sources */,
 				A3C2C1332E66A52B005A322F /* OpenAIManager.swift in Sources */,

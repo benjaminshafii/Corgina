@@ -670,7 +670,6 @@ struct DashboardView: View {
             return "Unknown action"
         }
     }
-}
     
     private func savePhotoLog() {
         if let data = tempImageData {

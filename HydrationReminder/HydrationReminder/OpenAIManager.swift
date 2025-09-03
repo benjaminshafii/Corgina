@@ -20,8 +20,8 @@ struct FoodAnalysis: Codable {
     }
 }
 
-struct VoiceAction: Codable {
-    enum ActionType: String, Codable {
+struct VoiceAction: Codable, Equatable {
+    enum ActionType: String, Codable, Equatable {
         case logWater = "log_water"
         case logFood = "log_food"
         case logSymptom = "log_symptom"
@@ -34,7 +34,7 @@ struct VoiceAction: Codable {
     let details: ActionDetails
     let confidence: Double
     
-    struct ActionDetails: Codable {
+    struct ActionDetails: Codable, Equatable {
         let item: String?
         let amount: String?
         let unit: String?

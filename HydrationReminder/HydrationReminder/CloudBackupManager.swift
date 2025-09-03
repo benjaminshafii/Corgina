@@ -200,12 +200,10 @@ class CloudBackupManager: ObservableObject {
             if !imageData.isEmpty {
                 let photoRecord = CKRecord(recordType: "PhotoBackup", recordID: CKRecord.ID(recordName: photoLog.id.uuidString, zoneID: recordZone.zoneID))
                 
-            // Store image as CKAsset
-            if let imageData = photoLog.imageData as Data? {
+                // Store image as CKAsset
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(photoLog.id.uuidString).jpg")
                 try imageData.write(to: tempURL)
                 photoRecord["image"] = CKAsset(fileURL: tempURL)
-            }
                 photoRecord["photoLogId"] = photoLog.id.uuidString
                 
                 records.append(photoRecord)

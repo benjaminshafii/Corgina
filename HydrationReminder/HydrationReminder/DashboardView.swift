@@ -19,6 +19,9 @@ struct DashboardView: View {
     @State private var notes = ""
     @State private var selectedMealType: MealType?
     @State private var selectedDate = Date()
+    @State private var showVoiceSheet = false
+    @State private var voiceActionConfirmation = false
+    @State private var lastVoiceActions: [VoiceAction] = []
     
     private var todaysDate: String {
         let formatter = DateFormatter()
@@ -57,29 +60,51 @@ struct DashboardView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    headerSection
-                    
-                    nutritionSummaryCard
-                    
-                    if let summary = supplementManager.todaysSummary {
-                        vitaminCard(summary)
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        headerSection
+                        
+                        if voiceLogManager.isProcessingVoice {
+                            voiceProcessingCard
+                        }
+                        
+                        if !lastVoiceActions.isEmpty && voiceActionConfirmation {
+                            voiceActionsCard
+                        }
+                        
+                        nutritionSummaryCard
+                        
+                        if let summary = supplementManager.todaysSummary {
+                            vitaminCard(summary)
+                        }
+                        
+                        if let todaysScore = puqeManager.todaysScore {
+                            puqeScoreCard(todaysScore)
+                        }
+                        
+                        hydrationCard
+                        
+                        foodCard
+                        
+                        recentActivitySection
                     }
-                    
-                    if let todaysScore = puqeManager.todaysScore {
-                        puqeScoreCard(todaysScore)
-                    }
-                    
-                    hydrationCard
-                    
-                    foodCard
-                    
-                    recentActivitySection
+                    .padding()
+                    .padding(.bottom, 80)
                 }
-                .padding()
+                .background(Color(.systemGroupedBackground))
+                
+                // Floating Voice Action Button
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        voiceActionButton
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 90)
+                    }
+                }
             }
-            .background(Color(.systemGroupedBackground))
             .navigationBarHidden(true)
         }
         .sheet(isPresented: $showingCamera) {
@@ -111,6 +136,15 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingVoiceRecording) {
             VoiceRecordingView(manager: voiceLogManager)
+        }
+        .sheet(isPresented: $showVoiceSheet) {
+            VoiceCommandSheet(voiceLogManager: voiceLogManager, onDismiss: {
+                showVoiceSheet = false
+                if !voiceLogManager.detectedActions.isEmpty {
+                    lastVoiceActions = voiceLogManager.detectedActions
+                    voiceActionConfirmation = true
+                }
+            })
         }
         .confirmationDialog("Add Food Photo", isPresented: $showingPhotoOptions) {
             Button("Take Photo") {
@@ -495,6 +529,148 @@ struct DashboardView: View {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+    
+    // MARK: - Voice UI Components
+    
+    private var voiceActionButton: some View {
+        Button(action: {
+            showVoiceSheet = true
+        }) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color.blue, Color.purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 60, height: 60)
+                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+            }
+        }
+        .scaleEffect(voiceLogManager.isRecording ? 1.1 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: voiceLogManager.isRecording)
+    }
+    
+    private var voiceProcessingCard: some View {
+        VStack(spacing: 12) {
+            HStack {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("Processing voice command...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            
+            if let transcript = voiceLogManager.lastTranscription {
+                Text("\"\(transcript)\"")
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .italic()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    private var voiceActionsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Actions Completed")
+                    .font(.headline)
+                Spacer()
+                Button(action: {
+                    voiceActionConfirmation = false
+                    lastVoiceActions = []
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            ForEach(lastVoiceActions, id: \.type) { action in
+                HStack {
+                    Image(systemName: actionIcon(for: action.type))
+                        .foregroundColor(actionColor(for: action.type))
+                        .frame(width: 20)
+                    
+                    Text(actionDescription(for: action))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    if action.confidence > 0.8 {
+                        Image(systemName: "checkmark")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                withAnimation {
+                    voiceActionConfirmation = false
+                }
+            }
+        }
+    }
+    
+    private func actionIcon(for type: VoiceAction.ActionType) -> String {
+        switch type {
+        case .logWater: return "drop.fill"
+        case .logFood: return "fork.knife"
+        case .logVitamin: return "pills.fill"
+        case .logSymptom: return "heart.text.square"
+        case .logPUQE: return "chart.line.uptrend.xyaxis"
+        case .unknown: return "questionmark.circle"
+        }
+    }
+    
+    private func actionColor(for type: VoiceAction.ActionType) -> Color {
+        switch type {
+        case .logWater: return .blue
+        case .logFood: return .orange
+        case .logVitamin: return .purple
+        case .logSymptom: return .red
+        case .logPUQE: return .pink
+        case .unknown: return .gray
+        }
+    }
+    
+    private func actionDescription(for action: VoiceAction) -> String {
+        switch action.type {
+        case .logWater:
+            if let amount = action.details.amount, let unit = action.details.unit {
+                return "Logged \(amount) \(unit) of water"
+            }
+            return "Logged water intake"
+        case .logFood:
+            return "Logged: \(action.details.item ?? "food")"
+        case .logVitamin:
+            return "Logged: \(action.details.vitaminName ?? "vitamin")"
+        case .logSymptom:
+            return "Logged symptom: \(action.details.symptoms?.joined(separator: ", ") ?? "symptom")"
+        case .logPUQE:
+            return "Logged PUQE score"
+        case .unknown:
+            return "Unknown action"
+        }
+    }
+}
     
     private func savePhotoLog() {
         if let data = tempImageData {

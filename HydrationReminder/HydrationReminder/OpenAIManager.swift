@@ -188,60 +188,6 @@ class OpenAIManager: ObservableObject {
             throw OpenAIError.invalidResponse
         }
         
-        // Debug logging
-        print("GPT-5 Response: \(cleanedContent)")
-        
-        // Try to parse the JSON response
-        guard let json = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any] else {
-            print("Failed to parse JSON from GPT-5 response")
-            throw OpenAIError.invalidResponse
-        }
-        
-        // Extract actions array
-        guard let actionsArray = json["actions"] as? [[String: Any]] else {
-            print("No actions array found in response")
-            DispatchQueue.main.async {
-                self.detectedActions = []
-            }
-            return []
-        }
-        
-        // Parse each action
-        var actions: [VoiceAction] = []
-        for actionDict in actionsArray {
-            // Extract fields manually for better error handling
-            guard let typeStr = actionDict["type"] as? String,
-                  let type = VoiceAction.ActionType(rawValue: typeStr),
-                  let detailsDict = actionDict["details"] as? [String: Any] else {
-                print("Skipping malformed action: \(actionDict)")
-                continue
-            }
-            
-            let confidence = actionDict["confidence"] as? Double ?? 0.8
-            
-            let details = VoiceAction.ActionDetails(
-                item: detailsDict["item"] as? String,
-                amount: detailsDict["amount"] as? String,
-                unit: detailsDict["unit"] as? String,
-                severity: detailsDict["severity"] as? String,
-                mealType: detailsDict["mealType"] as? String,
-                symptoms: detailsDict["symptoms"] as? [String],
-                vitaminName: detailsDict["vitaminName"] as? String,
-                notes: detailsDict["notes"] as? String
-            )
-            
-            let action = VoiceAction(type: type, details: details, confidence: confidence)
-            actions.append(action)
-        }
-        
-        print("Extracted \(actions.count) actions from GPT-5")
-        
-        DispatchQueue.main.async {
-            self.detectedActions = actions
-        }
-        
-        return actions
-        
         let analysis = try JSONDecoder().decode(FoodAnalysis.self, from: contentData)
         return analysis
     }

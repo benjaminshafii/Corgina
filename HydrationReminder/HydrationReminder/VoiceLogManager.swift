@@ -133,20 +133,33 @@ class VoiceLogManager: NSObject, ObservableObject {
             
             do {
                 let audioData = try Data(contentsOf: audioURL)
-                let actions = try await openAIManager.transcribeAndExtractActions(audioData: audioData)
                 
-                self.lastTranscription = openAIManager.lastTranscription
-                self.detectedActions = actions
+                // First try to get transcription
+                let transcription = try await openAIManager.transcribeAudio(audioData: audioData)
+                self.lastTranscription = transcription.text
                 
-                if !actions.isEmpty {
-                    self.showActionConfirmation = true
-                    // Auto-execute high confidence actions
-                    for action in actions where action.confidence > 0.8 {
-                        executeAction(action)
+                // Then try to extract actions
+                if !transcription.text.isEmpty {
+                    do {
+                        let actions = try await openAIManager.extractVoiceActions(from: transcription.text)
+                        self.detectedActions = actions
+                        
+                        if !actions.isEmpty {
+                            self.showActionConfirmation = true
+                            // Auto-execute high confidence actions
+                            for action in actions where action.confidence > 0.8 {
+                                executeAction(action)
+                            }
+                        }
+                    } catch {
+                        // Even if action extraction fails, we still have the transcription
+                        print("Error extracting actions: \(error)")
+                        self.detectedActions = []
                     }
                 }
             } catch {
                 print("Error processing voice: \(error)")
+                self.lastTranscription = "Error: Could not transcribe audio. Please check your API key."
             }
             
             isProcessingVoice = false

@@ -3,10 +3,12 @@ import AVFoundation
 
 struct VoiceCommandSheet: View {
     @ObservedObject var voiceLogManager: VoiceLogManager
+    @StateObject private var openAIManager = OpenAIManager.shared
     @State private var isListening = false
     @State private var animationScale: CGFloat = 1.0
     @State private var showExamples = false
     @State private var timer: Timer?
+    @State private var errorMessage: String?
     let onDismiss: () -> Void
     
     var body: some View {
@@ -77,16 +79,63 @@ struct VoiceCommandSheet: View {
                             .font(.headline)
                             .foregroundColor(.secondary)
                     }
-                    
-                    if let transcript = voiceLogManager.lastTranscription, !isListening {
+                }
+                
+                // Transcription Display - Always show if available
+                if let transcript = voiceLogManager.lastTranscription, !transcript.isEmpty, !isListening {
+                    VStack(spacing: 4) {
+                        Text("You said:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
                         Text("\"\(transcript)\"")
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundColor(.primary)
                             .italic()
                             .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(8)
                             .multilineTextAlignment(.center)
-                            .padding(.top, 8)
                     }
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                }
+                
+                // Error or API Key Warning
+                if !openAIManager.hasAPIKey && !isListening {
+                    VStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.title2)
+                        
+                        Text("OpenAI API Key Required")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("Voice transcription requires an OpenAI API key. Please add it in Settings.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        Button(action: {
+                            // Close sheet and open settings
+                            onDismiss()
+                        }) {
+                            Text("Go to Settings")
+                                .font(.caption)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(20)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.tertiarySystemBackground))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
                 }
                 
                 // Detected Actions
@@ -189,6 +238,10 @@ struct VoiceCommandSheet: View {
     }
     
     private func startRecording() {
+        // Clear previous transcription and actions
+        voiceLogManager.lastTranscription = nil
+        voiceLogManager.detectedActions = []
+        
         voiceLogManager.requestMicrophonePermission { granted in
             if granted {
                 voiceLogManager.startRecording()

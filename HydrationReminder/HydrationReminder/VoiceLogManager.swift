@@ -191,6 +191,12 @@ class VoiceLogManager: NSObject, ObservableObject {
         case .logFood:
             let foodItem = action.details.item ?? "meal"
             print("Voice: Logging food - \(foodItem)")
+            
+            // Create a photo food log with AI analysis for voice food
+            Task {
+                await createFoodLogWithMacros(foodItem: foodItem)
+            }
+            
             logsManager.logFood(notes: foodItem, source: .voice)
             showToast("Logged food: \(foodItem)")
             print("Voice: Food logged successfully")
@@ -245,6 +251,99 @@ class VoiceLogManager: NSObject, ObservableObject {
             userInfo: ["message": message]
         )
     }
+    
+    private func createFoodLogWithMacros(foodItem: String) async {
+        // Use OpenAI to estimate macros for the food item
+        let systemPrompt = """
+        Estimate nutritional information for: "\(foodItem)"
+        
+        Return JSON with these fields:
+        {
+            "items": [
+                {
+                    "name": "\(foodItem)",
+                    "quantity": "1 serving",
+                    "estimatedCalories": number,
+                    "protein": number (grams),
+                    "carbs": number (grams),
+                    "fat": number (grams),
+                    "fiber": number (grams)
+                }
+            ],
+            "totalCalories": number,
+            "totalProtein": number,
+            "totalCarbs": number,
+            "totalFat": number,
+            "totalFiber": number
+        }
+        """
+        
+        do {
+            // Get macro estimates from OpenAI
+            let messages: [[String: Any]] = [
+                ["role": "system", "content": systemPrompt]
+            ]
+            
+            let requestBody: [String: Any] = [
+                "model": "gpt-4o-mini",
+                "messages": messages,
+                "max_tokens": 300,
+                "temperature": 0.3,
+                "response_format": ["type": "json_object"]
+            ]
+            
+            var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
+            request.httpMethod = "POST"
+            let apiKey = UserDefaults.standard.string(forKey: "openAIKey") ?? ""
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+            
+            let (data, _) = try await URLSession.shared.data(for: request)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = json["choices"] as? [[String: Any]],
+               let firstChoice = choices.first,
+               let message = firstChoice["message"] as? [String: Any],
+               let content = message["content"] as? String,
+               let contentData = content.data(using: .utf8),
+               let analysis = try? JSONDecoder().decode(FoodAnalysis.self, from: contentData) {
+                
+                // Create a photo food log with the macro data
+                let photoLog = PhotoFoodLog(
+                    date: Date(),
+                    imageData: Data(), // Empty image data for voice logs
+                    notes: foodItem,
+                    mealType: getMealType(),
+                    aiAnalysis: analysis
+                )
+                
+                // Save to photo log manager
+                let photoLogManager = PhotoFoodLogManager()
+                photoLogManager.photoLogs.append(photoLog)
+                photoLogManager.savePhotoLogs()
+                
+                print("Voice: Added food with macros - Calories: \(analysis.totalCalories ?? 0)")
+            }
+        } catch {
+            print("Voice: Error getting macros for food: \(error)")
+        }
+    }
+    
+    private func getMealType() -> MealType {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<11:
+            return .breakfast
+        case 11..<15:
+            return .lunch
+        case 15..<21:
+            return .dinner
+        default:
+            return .snack
+        }
+    }
+}
     
     func playAudio(log: VoiceLog) {
         stopAudio()
@@ -327,8 +426,7 @@ class VoiceLogManager: NSObject, ObservableObject {
         guard let category = category else { return voiceLogs }
         return voiceLogs.filter { $0.category == category }
     }
-}
-
+    
 extension VoiceLogManager: AVAudioRecorderDelegate {
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         if !flag {

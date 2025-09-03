@@ -27,6 +27,7 @@ struct DashboardView: View {
     @State private var transcriptionText = ""
     @State private var showActionToast = false
     @State private var actionText = ""
+    @State private var showingPhotoPicker = false
     
     private var todaysDate: String {
         let formatter = DateFormatter()
@@ -243,23 +244,55 @@ struct DashboardView: View {
             Button("Take Photo") {
                 showingCamera = true
             }
-            PhotosPicker(
-                selection: $selectedItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                Text("Choose from Library")
+            Button("Choose from Library") {
+                showingPhotoPicker = true
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("How would you like to add a food photo?")
         }
+        .sheet(isPresented: $showingPhotoPicker) {
+            NavigationView {
+                VStack {
+                    PhotosPicker(
+                        selection: $selectedItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        VStack(spacing: 20) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 60))
+                                .foregroundColor(.blue)
+                            Text("Tap to Select Photo")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                            Text("Choose a photo from your library")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .navigationTitle("Select Food Photo")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            showingPhotoPicker = false
+                        }
+                    }
+                }
+            }
+        }
         .onChange(of: selectedItem) { newItem in
             Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                    tempImageData = data
-                    showingAddNotes = true
-                    selectedItem = nil
+                if let newItem = newItem {
+                    if let data = try? await newItem.loadTransferable(type: Data.self) {
+                        tempImageData = data
+                        showingAddNotes = true
+                        selectedItem = nil
+                        showingPhotoPicker = false
+                    }
                 }
             }
         }

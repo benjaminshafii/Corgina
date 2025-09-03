@@ -329,16 +329,6 @@ struct ContentView: View {
             }
             .navigationTitle("Health Tracker")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundColor(.gray)
-                    }
-                }
-            }
             .onAppear {
                 notificationManager.requestPermission()
             }
@@ -356,9 +346,7 @@ struct ContentView: View {
             } message: {
                 Text(alertMessage)
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView(notificationManager: notificationManager)
-            }
+
         }
     }
 }

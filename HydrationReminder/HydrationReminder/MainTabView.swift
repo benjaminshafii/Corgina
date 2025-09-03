@@ -32,11 +32,6 @@ struct MainTabView: View {
                     Label("Food", systemImage: "camera.fill")
                 }
             
-            LogLedgerView(logsManager: logsManager)
-                .tabItem {
-                    Label("Logs", systemImage: "list.clipboard")
-                }
-            
             PUQEScoreView()
                 .tabItem {
                     Label("PUQE", systemImage: "chart.line.uptrend.xyaxis")
@@ -45,6 +40,13 @@ struct MainTabView: View {
             SupplementTrackerView()
                 .tabItem {
                     Label("Vitamins", systemImage: "pills.fill")
+                }
+            
+            MoreView()
+                .environmentObject(logsManager)
+                .environmentObject(notificationManager)
+                .tabItem {
+                    Label("More", systemImage: "ellipsis.circle")
                 }
         }
     }

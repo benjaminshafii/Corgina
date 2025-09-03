@@ -151,12 +151,11 @@ class VoiceLogManager: NSObject, ObservableObject {
                     self.showActionConfirmation = !actions.isEmpty
                     self.isProcessingVoice = false
                     
-                    // Don't auto-execute here - let VoiceCommandSheet handle it
-                    // This prevents double execution
-                    // if !actions.isEmpty {
-                    //     print("📱 Auto-executing \(actions.count) actions")
-                    //     self.executeVoiceActions(actions)
-                    // }
+                    // Auto-execute the actions immediately after detection
+                    if !actions.isEmpty {
+                        print("📱 Auto-executing \(actions.count) actions")
+                        self.executeVoiceActions(actions)
+                    }
                 }
                 
             } catch {

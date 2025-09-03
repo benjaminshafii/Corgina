@@ -779,11 +779,11 @@ struct DashboardView: View {
         transcriptionText = "Processing your voice command..."
         showTranscriptionToast = true
         
-        // Wait for the voice processing to complete
+        // Monitor the processing completion
         Task {
-            // Give the voice manager time to process (usually takes 2-3 seconds)
-            var attempts = 0
-            while attempts < 50 { // Max 5 seconds wait
+            // Wait for transcription first
+            var transcriptionAttempts = 0
+            while transcriptionAttempts < 60 { // Max 6 seconds for transcription
                 try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
                 if let transcription = voiceLogManager.lastTranscription {
@@ -792,40 +792,92 @@ struct DashboardView: View {
                         showTranscriptionToast = true
                     }
                     
-                    // Wait a bit more for actions to be detected
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                    
-                    await MainActor.run {
-                        // Hide transcription toast after showing it
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            showTranscriptionToast = false
-                        }
+                    // Now wait for actions to be detected and executed
+                    var actionAttempts = 0
+                    while actionAttempts < 30 { // Max 3 more seconds for actions
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                         
-                        // Process actions if any detected
-                        if !voiceLogManager.detectedActions.isEmpty {
-                            processDetectedActions()
-                        } else {
-                            // Show a message if no actions were detected
-                            actionText = "No actions detected from your command"
-                            showActionToast = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                showActionToast = false
+                        // Check if processing is complete
+                        if !voiceLogManager.isProcessingVoice {
+                            await MainActor.run {
+                                // Hide transcription toast
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    showTranscriptionToast = false
+                                }
+                                
+                                // Show action results
+                                if !voiceLogManager.detectedActions.isEmpty {
+                                    // Actions were already executed by VoiceLogManager
+                                    // Just show confirmation
+                                    var actionSummary = ""
+                                    for action in voiceLogManager.detectedActions {
+                                        switch action.type {
+                                        case .logFood:
+                                            if let foodName = action.details.item {
+                                                actionSummary += "✓ Added \(foodName) to food log\n"
+                                            }
+                                        case .logWater:
+                                            if let amount = action.details.amount, let unit = action.details.unit {
+                                                actionSummary += "✓ Logged \(amount)\(unit) of water\n"
+                                            }
+                                        case .logVitamin:
+                                            if let vitaminName = action.details.item ?? action.details.vitaminName {
+                                                actionSummary += "✓ Marked \(vitaminName) as taken\n"
+                                            }
+                                        case .logSymptom:
+                                            if let symptoms = action.details.symptoms {
+                                                actionSummary += "✓ Logged symptoms: \(symptoms.joined(separator: ", "))\n"
+                                            }
+                                        case .logPUQE:
+                                            actionSummary += "✓ Logged PUQE score\n"
+                                        case .unknown:
+                                            actionSummary += "Unknown action\n"
+                                        }
+                                    }
+                                    
+                                    actionText = actionSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    showActionToast = true
+                                    
+                                    // Clear actions and hide toast after showing
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        showActionToast = false
+                                        voiceLogManager.detectedActions = []
+                                        voiceLogManager.lastTranscription = nil
+                                    }
+                                } else {
+                                    // No actions detected
+                                    actionText = "No actions detected from your command"
+                                    showActionToast = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        showActionToast = false
+                                    }
+                                }
                             }
+                            return
+                        }
+                        actionAttempts += 1
+                    }
+                    
+                    // If we got transcription but timed out waiting for actions
+                    await MainActor.run {
+                        showTranscriptionToast = false
+                        actionText = "Processing timed out"
+                        showActionToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showActionToast = false
                         }
                     }
-                    break
+                    return
                 }
-                attempts += 1
+                transcriptionAttempts += 1
             }
             
-            // If we timed out, show error
-            if attempts >= 50 {
-                await MainActor.run {
-                    transcriptionText = "Failed to process voice command"
-                    showTranscriptionToast = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showTranscriptionToast = false
-                    }
+            // If we timed out on transcription
+            await MainActor.run {
+                transcriptionText = "Failed to process voice command"
+                showTranscriptionToast = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showTranscriptionToast = false
                 }
             }
         }

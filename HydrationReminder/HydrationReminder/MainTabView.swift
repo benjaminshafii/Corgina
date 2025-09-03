@@ -16,11 +16,6 @@ struct MainTabView: View {
                     Label("Logs", systemImage: "list.clipboard")
                 }
             
-            PhotoFoodLogView()
-                .tabItem {
-                    Label("Food", systemImage: "camera.fill")
-                }
-            
             PUQEScoreView()
                 .tabItem {
                     Label("PUQE", systemImage: "chart.line.uptrend.xyaxis")

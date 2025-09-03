@@ -50,6 +50,16 @@ struct MoreView: View {
                             Spacer()
                         }
                     }
+                    
+                    NavigationLink(destination: PhotoFoodLogView()) {
+                        HStack {
+                            Image(systemName: "camera.fill")
+                                .foregroundColor(.orange)
+                                .frame(width: 30)
+                            Text("Food Photo Log")
+                            Spacer()
+                        }
+                    }
                 }
                 
                 Section {

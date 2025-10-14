@@ -158,7 +158,37 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
             [
                 "role": "user",
                 "content": [
-                    ["type": "text", "text": "Analyze this food image and provide nutritional information. Return JSON with: items array containing food items with name, quantity, estimatedCalories, protein, carbs, fat, fiber. Also include totalCalories, totalProtein, totalCarbs, totalFat, totalFiber."],
+                    ["type": "text", "text": """
+Analyze this food image and provide accurate nutritional information.
+
+IMPORTANT GUIDELINES:
+- Be REALISTIC with portion sizes - consider typical serving sizes people actually eat
+- For prepared dishes, consider all ingredients including oils, butter, sauces
+- Don't underestimate - it's better to slightly overestimate than underestimate calories
+- Consider cooking methods (fried foods have more calories than steamed)
+- Account for condiments, dressings, and toppings visible in the image
+
+For each food item, provide:
+- name: Clear descriptive name
+- quantity: Realistic portion (e.g., "1 medium plate", "2 slices", "1 cup")
+- estimatedCalories: Calories for that portion (be realistic, not conservative)
+- protein: grams of protein
+- carbs: grams of carbohydrates
+- fat: grams of fat
+- fiber: grams of fiber
+
+Return JSON format:
+{
+  "items": [{"name": "...", "quantity": "...", "estimatedCalories": X, "protein": X, "carbs": X, "fat": X, "fiber": X}],
+  "totalCalories": X,
+  "totalProtein": X,
+  "totalCarbs": X,
+  "totalFat": X,
+  "totalFiber": X
+}
+
+Example: A restaurant burger with fries should be 800-1200 calories, not 400.
+"""],
                     ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64Image)"]]
                 ]
             ]
@@ -494,17 +524,30 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
         }
 
         let prompt = """
-        Estimate the nutritional macros for: \(foodName)
+        Estimate nutritional macros for: \(foodName)
 
-        Provide estimates for a typical serving size. Return JSON with:
+        IMPORTANT GUIDELINES:
+        - Be REALISTIC - don't underestimate calories
+        - If quantity is mentioned (e.g., "2 apples", "large pizza"), account for it
+        - For restaurant/prepared foods, assume typical restaurant portions (usually larger)
+        - Include cooking oils, butter, dressings in estimates
+        - Consider preparation method if mentioned (fried = more calories)
+
+        For a typical serving/portion mentioned:
         {
-            "calories": 250,
-            "protein": 20,
-            "carbs": 30,
-            "fat": 8
+            "calories": [realistic calorie count],
+            "protein": [grams],
+            "carbs": [grams],
+            "fat": [grams]
         }
 
-        Provide reasonable estimates based on typical portion sizes.
+        Examples:
+        - "avocado toast" -> 350-400 cal (bread + avocado + oil)
+        - "chicken breast" -> 200-250 cal for 6oz cooked
+        - "2 eggs" -> 180 cal (includes cooking oil)
+        - "restaurant burger" -> 700-900 cal (includes bun, cheese, sauce)
+
+        Return ONLY valid JSON.
         """
 
         let messages = [

@@ -439,6 +439,52 @@ struct MainTabView: View {
                         ))
                 }
             }
+
+            // Action buttons
+            HStack(spacing: 12) {
+                // Log Another button
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        voiceLogManager.clearExecutedActions()
+                        // Small delay to let drawer disappear, then start new recording
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            voiceLogManager.startRecording()
+                        }
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Log Another")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+
+                // Done button
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        voiceLogManager.clearExecutedActions()
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(.secondarySystemBackground))
+                    .foregroundColor(.primary)
+                    .cornerRadius(12)
+                }
+            }
+            .padding(.top, 8)
         }
     }
 }

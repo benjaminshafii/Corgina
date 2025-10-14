@@ -27,86 +27,75 @@ struct MainTabView: View {
                 voiceLogManager.configure(logsManager: logsManager, supplementManager: supplementManager)
             }
     }
-    
+
     @ViewBuilder
     private var mainView: some View {
         ZStack(alignment: .bottom) {
             tabView
         }
         .overlay(alignment: .bottom) {
-            VStack(spacing: 0) {
-                Spacer()
-                    .allowsHitTesting(false)
-
-                let shouldShowDrawer = voiceLogManager.isRecording ||
-                   voiceLogManager.actionRecognitionState == .recognizing ||
-                   voiceLogManager.actionRecognitionState == .executing ||
-                   voiceLogManager.isProcessingVoice ||
-                   (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
-
-                let _ = print("🎨 UI DRAWER EVALUATION:")
-                let _ = print("🎨 isRecording: \(voiceLogManager.isRecording)")
-                let _ = print("🎨 actionRecognitionState: \(voiceLogManager.actionRecognitionState)")
-                let _ = print("🎨 isProcessingVoice: \(voiceLogManager.isProcessingVoice)")
-                let _ = print("🎨 executedActions.count: \(voiceLogManager.executedActions.count)")
-                let _ = print("🎨 shouldShowDrawer: \(shouldShowDrawer)")
-
-                if shouldShowDrawer {
-                    voiceFlowDrawer
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            // Drawer that appears during processing
+            if shouldShowDrawer {
+                voiceFlowDrawer
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: voiceLogManager.isRecording)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: voiceLogManager.actionRecognitionState)
         }
         .overlay(alignment: .bottomTrailing) {
-            // Show floating button when idle OR actively recording
-            // Hide it only during analyzing/executing/completed states
-            let shouldHideButton = voiceLogManager.actionRecognitionState == .recognizing ||
-               voiceLogManager.actionRecognitionState == .executing ||
-               (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
-
-            // Show button when idle or recording, hide during processing states
+            // Floating mic button - visible when idle or recording
             if !shouldHideButton {
                 FloatingMicButton(
                     isRecording: voiceLogManager.isRecording,
                     actionState: voiceLogManager.actionRecognitionState,
                     onTap: handleVoiceTap
                 )
-                .padding(.trailing, 16)
-                .padding(.bottom, 100)
+                .padding(.trailing, 20)
+                .padding(.bottom, 90)
                 .transition(.scale.combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldShowDrawer)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: shouldHideButton)
     }
-    
+
+    private var shouldShowDrawer: Bool {
+        voiceLogManager.isRecording ||
+        voiceLogManager.actionRecognitionState == .recognizing ||
+        voiceLogManager.actionRecognitionState == .executing ||
+        voiceLogManager.isProcessingVoice ||
+        (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
+    }
+
+    private var shouldHideButton: Bool {
+        // Hide button when drawer is showing (during processing states)
+        voiceLogManager.actionRecognitionState == .recognizing ||
+        voiceLogManager.actionRecognitionState == .executing ||
+        (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
+    }
+
     private var tabView: some View {
         TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "house.fill")
-                }
+            Tab("Dashboard", systemImage: "house.fill") {
+                DashboardView()
+            }
 
-            LogLedgerView(logsManager: logsManager)
-                .tabItem {
-                    Label("Logs", systemImage: "list.clipboard")
-                }
+            Tab("Logs", systemImage: "list.clipboard") {
+                LogLedgerView(logsManager: logsManager)
+            }
 
-            PUQEScoreView()
-                .tabItem {
-                    Label("PUQE", systemImage: "chart.line.uptrend.xyaxis")
-                }
+            Tab("PUQE", systemImage: "chart.line.uptrend.xyaxis") {
+                PUQEScoreView()
+            }
 
-            MoreView()
-                .environmentObject(logsManager)
-                .environmentObject(notificationManager)
-                .tabItem {
-                    Label("More", systemImage: "ellipsis.circle")
-                }
+            Tab("More", systemImage: "ellipsis.circle") {
+                MoreView()
+                    .environmentObject(logsManager)
+                    .environmentObject(notificationManager)
+            }
         }
         .tint(.blue)
+        .tabViewStyle(.sidebarAdaptable)
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
-    
 
 
     private func handleVoiceTap() {
@@ -146,7 +135,7 @@ struct MainTabView: View {
         print("🎯🎯🎯 handleVoiceTap() COMPLETE")
         print("🎯🎯🎯 ============================================")
     }
-    
+
     private func getActionSummary(_ action: VoiceAction) -> String {
         var summary = ""
 
@@ -180,11 +169,14 @@ struct MainTabView: View {
 
         return summary
     }
-    
+}
+
+// MARK: - Voice Flow Drawer (iOS 26 Liquid Glass)
+extension MainTabView {
     private var voiceFlowDrawer: some View {
         VStack(spacing: 0) {
             // Drag handle
-            RoundedRectangle(cornerRadius: 2.5)
+            Capsule()
                 .fill(.tertiary)
                 .frame(width: 36, height: 5)
                 .padding(.top, 12)
@@ -205,29 +197,30 @@ struct MainTabView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 20, y: -5)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 24, y: -8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                        .blendMode(.overlay)
+                )
+        )
         .padding(.horizontal, 16)
-        .padding(.bottom, 100)
+        .padding(.bottom, 90)
     }
 
-    // MARK: - State 1: Recording (Live Transcription)
+    // Recording state
     private var recordingStateView: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(.red.opacity(0.15))
+                        .fill(Color.red.opacity(0.15))
                         .frame(width: 44, height: 44)
-
-                    Circle()
-                        .stroke(.red.opacity(0.4), lineWidth: 2)
-                        .frame(width: 54, height: 54)
-                        .scaleEffect(voiceLogManager.isRecording ? 1.2 : 1.0)
-                        .opacity(voiceLogManager.isRecording ? 0 : 0.8)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: false), value: voiceLogManager.isRecording)
 
                     Image(systemName: "waveform")
                         .font(.system(size: 18, weight: .semibold))
@@ -239,7 +232,7 @@ struct MainTabView: View {
                         .font(.headline)
                         .foregroundColor(.primary)
 
-                    Text("Speak naturally")
+                    Text("Tap stop when finished")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -247,46 +240,33 @@ struct MainTabView: View {
                 Spacer()
             }
 
-            // Live transcript bubble
+            // Live transcript
             if !voiceLogManager.onDeviceSpeechManager.liveTranscript.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Live Transcript")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(voiceLogManager.onDeviceSpeechManager.liveTranscript)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .lineLimit(5)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .animation(.easeInOut(duration: 0.2), value: voiceLogManager.onDeviceSpeechManager.liveTranscript)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.red.opacity(0.08))
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                Text(voiceLogManager.onDeviceSpeechManager.liveTranscript)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.red.opacity(0.08))
+                    )
             }
         }
     }
 
-    // MARK: - State 2: Analyzing (On-device → OpenAI refinement)
+    // Analyzing state
     private var analyzingStateView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(.blue.opacity(0.15))
+                        .fill(Color.blue.opacity(0.15))
                         .frame(width: 44, height: 44)
 
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                        .scaleEffect(1.1)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.blue)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -294,7 +274,7 @@ struct MainTabView: View {
                         .font(.headline)
                         .foregroundColor(.primary)
 
-                    Text("Refining with AI...")
+                    Text("Processing with AI...")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -302,55 +282,43 @@ struct MainTabView: View {
                 Spacer()
             }
 
-            // Show on-device transcript dimmed
             if !voiceLogManager.onDeviceSpeechManager.liveTranscript.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("On-Device")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(voiceLogManager.onDeviceSpeechManager.liveTranscript)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .opacity(0.6)
-                        .lineLimit(3)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.secondary.opacity(0.08))
-                )
+                Text(voiceLogManager.onDeviceSpeechManager.liveTranscript)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .opacity(0.6)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.secondary.opacity(0.08))
+                    )
             }
 
-            // Progress indicators
+            // Progress animation
             HStack(spacing: 8) {
-                ForEach(0..<3, id: \.self) { index in
+                ForEach(0..<3, id: \.self) { _ in
                     Capsule()
                         .fill(.blue.opacity(0.3))
                         .frame(height: 4)
-                        .overlay(
-                            GeometryReader { geo in
-                                Capsule()
-                                    .fill(.blue)
-                                    .frame(width: index == 0 ? geo.size.width : (index == 1 ? geo.size.width * 0.6 : 0))
-                            }
-                        )
                 }
             }
         }
     }
 
-    // MARK: - State 3: Executing (Refined transcript + creating logs)
+    // Executing state
     private var executingStateView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.green)
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.15))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.green)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Understood")
@@ -365,36 +333,22 @@ struct MainTabView: View {
                 Spacer()
             }
 
-            // Refined transcript from OpenAI
             if let transcript = voiceLogManager.lastTranscription, !transcript.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Refined")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-
-                    Text("\"\(transcript)\"")
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(5)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.green.opacity(0.08))
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                Text("\"\(transcript)\"")
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.green.opacity(0.08))
+                    )
             }
 
-            // Creating logs indicator
             HStack(spacing: 12) {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-
                 Text("Creating log entries...")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -402,18 +356,17 @@ struct MainTabView: View {
         }
     }
 
-    // MARK: - State 4: Completed (Show logged actions)
+    // Completed state
     private var completedStateView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header with dismiss button
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(.green.opacity(0.15))
+                        .fill(Color.green.opacity(0.15))
                         .frame(width: 44, height: 44)
 
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 20, weight: .bold))
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.green)
                 }
 
@@ -428,29 +381,17 @@ struct MainTabView: View {
                 }
 
                 Spacer()
-
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        voiceLogManager.clearExecutedActions()
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.tertiary)
-                }
             }
 
             // Action cards
-            VStack(spacing: 12) {
-                ForEach(Array(voiceLogManager.executedActions.enumerated()), id: \.offset) { index, action in
-                    CompactActionCard(action: action)
-                        .transition(.asymmetric(
-                            insertion: .scale.combined(with: .opacity)
-                                .animation(.spring().delay(Double(index) * 0.08)),
-                            removal: .opacity
-                        ))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(voiceLogManager.executedActions.enumerated()), id: \.offset) { _, action in
+                        CompactActionCard(action: action)
+                    }
                 }
             }
+            .frame(maxHeight: 200)
 
             // Action buttons
             HStack(spacing: 12) {
@@ -458,7 +399,6 @@ struct MainTabView: View {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         voiceLogManager.clearExecutedActions()
-                        // Small delay to let drawer disappear, then start new recording
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             voiceLogManager.startRecording()
                         }

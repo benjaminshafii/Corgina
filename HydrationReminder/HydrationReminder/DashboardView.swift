@@ -270,7 +270,11 @@ struct DashboardView: View {
 
                     foodCard
 
-                    nutritionSummaryCard
+                    DailyCalorieTrackerCard()
+                        .environmentObject(logsManager)
+
+                    WeeklyCalorieTrackerCard()
+                        .environmentObject(logsManager)
 
                     if let summary = supplementManager.todaysSummary {
                         vitaminCard(summary)

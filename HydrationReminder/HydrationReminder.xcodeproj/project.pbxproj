@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01CB1911714075CBEDA8FACF /* WeeklyCalorieTrackerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */; };
+		34921AF2B6EA6AE1B7A47153 /* DailyCalorieTrackerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0072206FB3C03B03A085A2 /* DailyCalorieTrackerCard.swift */; };
 		4029890D10087370D98FB69C /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB767F1E6B37F669A8EA966F /* AboutView.swift */; };
 		4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */; };
 		6462F692FDFF9E541749BA01 /* DataBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */; };
@@ -38,6 +40,7 @@
 		A3655F872E68859500579475 /* UnifiedActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F852E68859500579475 /* UnifiedActivityRow.swift */; };
 		A3655F882E68859500579475 /* UnifiedActivityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F862E68859500579475 /* UnifiedActivityViewModel.swift */; };
 		A3655F892E68859500579475 /* AsyncTaskManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F842E68859500579475 /* AsyncTaskManager.swift */; };
+		A3BBBC2B2E9E1B4300A390F0 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = A3BBBC2A2E9E1B4300A390F0 /* OpenAI */; };
 		A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */; };
 		A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12A2E66A286005A322F /* PhotoFoodLog.swift */; };
 		A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12B2E66A286005A322F /* PhotoFoodLogView.swift */; };
@@ -50,6 +53,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0C0072206FB3C03B03A085A2 /* DailyCalorieTrackerCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DailyCalorieTrackerCard.swift; sourceTree = "<group>"; };
 		16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnDeviceSpeechManager.swift; sourceTree = "<group>"; };
 		236C3AF85D5591C712FF5B45 /* ExpandableVoiceNavbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExpandableVoiceNavbar.swift; sourceTree = "<group>"; };
 		7AB3703F168FD96710D1AF04 /* LiquidGlassHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidGlassHelpers.swift; sourceTree = "<group>"; };
@@ -93,6 +97,7 @@
 		A3C716292E69E5F70090D689 /* TimeEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEditSheet.swift; sourceTree = "<group>"; };
 		A3C7162A2E69E5F70090D689 /* TimeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeParser.swift; sourceTree = "<group>"; };
 		AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DataBackupManager.swift; sourceTree = "<group>"; };
+		B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCalorieTrackerCard.swift; sourceTree = "<group>"; };
 		EB767F1E6B37F669A8EA966F /* AboutView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		FA3791C3E12979F37175224A /* DisclaimerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisclaimerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -102,6 +107,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A3BBBC2B2E9E1B4300A390F0 /* OpenAI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,6 +177,8 @@
 				236C3AF85D5591C712FF5B45 /* ExpandableVoiceNavbar.swift */,
 				7AB3703F168FD96710D1AF04 /* LiquidGlassHelpers.swift */,
 				16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */,
+				0C0072206FB3C03B03A085A2 /* DailyCalorieTrackerCard.swift */,
+				B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */,
 			);
 			path = HydrationReminder;
 			sourceTree = "<group>";
@@ -243,6 +251,9 @@
 				Base,
 			);
 			mainGroup = A0FFFFF4295B0A6700000001;
+			packageReferences = (
+				A3BBBC292E9E1B4300A390F0 /* XCRemoteSwiftPackageReference "OpenAI" */,
+			);
 			productRefGroup = A0FFFFFE295B0A6700000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -307,6 +318,8 @@
 				94F2E384B0C315355700530D /* ExpandableVoiceNavbar.swift in Sources */,
 				9950EC605422ADD814B6BEDC /* LiquidGlassHelpers.swift in Sources */,
 				4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */,
+				34921AF2B6EA6AE1B7A47153 /* DailyCalorieTrackerCard.swift in Sources */,
+				01CB1911714075CBEDA8FACF /* WeeklyCalorieTrackerCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -366,7 +379,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -425,7 +438,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -518,6 +531,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A3BBBC292E9E1B4300A390F0 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A3BBBC2A2E9E1B4300A390F0 /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A3BBBC292E9E1B4300A390F0 /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A0FFFFF5295B0A6700000001 /* Project object */;
 }

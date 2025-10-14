@@ -449,4 +449,120 @@ class LogsManager: ObservableObject {
         
         return export
     }
+
+    // MARK: - Calorie Tracking
+
+    /// Get total calories for a specific date (includes photo logs via DashboardView aggregation)
+    func getCalories(for date: Date) -> Int {
+        let calendar = Calendar.current
+        let logs = logEntries.filter {
+            calendar.isDate($0.date, inSameDayAs: date) && $0.type == .food
+        }
+        return logs.reduce(0) { $0 + ($1.calories ?? 0) }
+    }
+
+    /// Get calories for the last N days
+    func getCaloriesForLastDays(_ days: Int) -> [(date: Date, calories: Int)] {
+        let calendar = Calendar.current
+        var result: [(date: Date, calories: Int)] = []
+
+        for dayOffset in 0..<days {
+            guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: Date()) else { continue }
+            let startOfDay = calendar.startOfDay(for: date)
+            let calories = getCalories(for: startOfDay)
+            result.append((startOfDay, calories))
+        }
+
+        return result.reversed()
+    }
+
+    /// Get meals grouped by time of day for a specific date
+    func getMealsByTimeOfDay(for date: Date) -> [MealCategory: [(log: LogEntry, calories: Int)]] {
+        let calendar = Calendar.current
+        let logs = logEntries.filter {
+            calendar.isDate($0.date, inSameDayAs: date) && $0.type == .food
+        }
+
+        var grouped: [MealCategory: [(log: LogEntry, calories: Int)]] = [:]
+
+        for log in logs {
+            let hour = calendar.component(.hour, from: log.date)
+            let category = MealCategory.from(hour: hour)
+            let calories = log.calories ?? 0
+
+            if grouped[category] == nil {
+                grouped[category] = []
+            }
+            grouped[category]?.append((log, calories))
+        }
+
+        return grouped
+    }
+
+    /// Get nutrition data for a specific date
+    func getNutritionData(for date: Date) -> NutritionData {
+        let calendar = Calendar.current
+        let logs = logEntries.filter {
+            calendar.isDate($0.date, inSameDayAs: date) && $0.type == .food
+        }
+
+        let calories = logs.reduce(0) { $0 + ($1.calories ?? 0) }
+        let protein = logs.reduce(0) { $0 + ($1.protein ?? 0) }
+        let carbs = logs.reduce(0) { $0 + ($1.carbs ?? 0) }
+        let fat = logs.reduce(0) { $0 + ($1.fat ?? 0) }
+
+        return NutritionData(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat
+        )
+    }
+}
+
+// MARK: - Supporting Data Models
+
+enum MealCategory: String, CaseIterable {
+    case breakfast = "Breakfast"
+    case lunch = "Lunch"
+    case dinner = "Dinner"
+    case snacks = "Snacks"
+
+    static func from(hour: Int) -> MealCategory {
+        switch hour {
+        case 5..<11: return .breakfast
+        case 11..<15: return .lunch
+        case 15..<20: return .dinner
+        default: return .snacks
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .breakfast: return "sunrise.fill"
+        case .lunch: return "sun.max.fill"
+        case .dinner: return "moon.stars.fill"
+        case .snacks: return "leaf.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .breakfast: return .orange
+        case .lunch: return .yellow
+        case .dinner: return .purple
+        case .snacks: return .green
+        }
+    }
+}
+
+struct NutritionData {
+    let calories: Int
+    let protein: Int
+    let carbs: Int
+    let fat: Int
+
+    var isEmpty: Bool {
+        calories == 0 && protein == 0 && carbs == 0 && fat == 0
+    }
 }

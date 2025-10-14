@@ -8,8 +8,11 @@
     },
     "notion": {
       "type": "local",
-      "command": ["npx", "-y", "mcp-remote", "https://mcp.notion.com/mcp"],
+      "command": ["npx", "-y", "mcp-remote", "https://mcp.notion.com/mcp"]
+    },
+    "chrome-devtools": {
+      "type": "local",
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"]
     }
   }
 }
-

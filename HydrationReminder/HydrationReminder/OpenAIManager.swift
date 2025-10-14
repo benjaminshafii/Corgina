@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
+import OpenAI
 
+// Keep existing data structures
 struct FoodAnalysis: Codable {
     let items: [FoodItem]
     let totalCalories: Int?
@@ -17,9 +19,9 @@ struct FoodAnalysis: Codable {
         let carbs: Double?
         let fat: Double?
         let fiber: Double?
-        
-        init(name: String, quantity: String, estimatedCalories: Int? = nil, 
-             protein: Double? = nil, carbs: Double? = nil, fat: Double? = nil, 
+
+        init(name: String, quantity: String, estimatedCalories: Int? = nil,
+             protein: Double? = nil, carbs: Double? = nil, fat: Double? = nil,
              fiber: Double? = nil) {
             self.name = name
             self.quantity = quantity
@@ -29,16 +31,16 @@ struct FoodAnalysis: Codable {
             self.fat = fat
             self.fiber = fiber
         }
-        
+
         enum CodingKeys: String, CodingKey {
             case name, quantity, estimatedCalories, protein, carbs, fat, fiber
         }
-        
+
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            
+
             self.name = try container.decode(String.self, forKey: .name)
-            
+
             // Handle quantity as either String or Number
             if let quantityString = try? container.decode(String.self, forKey: .quantity) {
                 self.quantity = quantityString
@@ -47,16 +49,16 @@ struct FoodAnalysis: Codable {
             } else if let quantityDouble = try? container.decode(Double.self, forKey: .quantity) {
                 self.quantity = String(quantityDouble)
             } else {
-                self.quantity = "1"  // Default value if parsing fails
+                self.quantity = "1"
             }
-            
+
             self.estimatedCalories = try container.decodeIfPresent(Int.self, forKey: .estimatedCalories)
             self.protein = try container.decodeIfPresent(Double.self, forKey: .protein)
             self.carbs = try container.decodeIfPresent(Double.self, forKey: .carbs)
             self.fat = try container.decodeIfPresent(Double.self, forKey: .fat)
             self.fiber = try container.decodeIfPresent(Double.self, forKey: .fiber)
         }
-        
+
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(name, forKey: .name)
@@ -77,7 +79,7 @@ struct VoiceAction: Codable, Equatable {
         case logSymptom = "log_symptom"
         case logVitamin = "log_vitamin"
         case logPUQE = "log_puqe"
-        case addVitamin = "add_vitamin"  // New: create a custom vitamin/supplement
+        case addVitamin = "add_vitamin"
         case unknown = "unknown"
     }
 
@@ -95,16 +97,19 @@ struct VoiceAction: Codable, Equatable {
         let symptoms: [String]?
         let vitaminName: String?
         let notes: String?
-        let timestamp: String?  // ISO 8601 format from GPT
-        let frequency: String?  // For add_vitamin: "daily", "twice daily", "weekly", etc.
-        let dosage: String?  // For add_vitamin: "1 tablet", "500mg", etc.
-        let timesPerDay: Int?  // For add_vitamin: how many times per day
+        let timestamp: String?
+        let frequency: String?
+        let dosage: String?
+        let timesPerDay: Int?
+        let isCompoundMeal: Bool?
+        let components: [MealComponent]?
+    }
+
+    struct MealComponent: Codable, Equatable {
+        let name: String
+        let quantity: String?
     }
 }
-
-  
-
-
 
 struct VoiceTranscription: Codable {
     let text: String
@@ -122,19 +127,26 @@ struct FoodSuggestion: Codable {
 
 class OpenAIManager: ObservableObject, @unchecked Sendable {
     nonisolated static let shared = OpenAIManager()
-    private let baseURL = "https://api.openai.com/v1/chat/completions"
-    private let whisperURL = "https://api.openai.com/v1/audio/transcriptions"
 
     @AppStorage("openAIKey") private var apiKey: String = ""
     @Published var isProcessing = false
     @Published var lastError: String?
     @Published var lastTranscription: String?
     @Published var detectedActions: [VoiceAction] = []
-    
+
+    private var client: OpenAI?
     private let maxRetries = 3
     private let initialRetryDelay: TimeInterval = 1.0
 
-    private init() {}
+    private init() {
+        setupClient()
+    }
+
+    private func setupClient() {
+        guard !apiKey.isEmpty else { return }
+        let configuration = OpenAI.Configuration(token: apiKey, timeoutInterval: 120.0)
+        client = OpenAI(configuration: configuration)
+    }
 
     var hasAPIKey: Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -142,7 +154,55 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
 
     func setAPIKey(_ key: String) {
         apiKey = key
+        setupClient()
     }
+
+    // MARK: - Audio Transcription (using MacPaw library)
+
+    func transcribeAudio(audioData: Data) async throws -> VoiceTranscription {
+        guard hasAPIKey else {
+            throw OpenAIError.noAPIKey
+        }
+
+        if client == nil {
+            setupClient()
+        }
+
+        guard let unwrappedClient = client else {
+            throw OpenAIError.noAPIKey
+        }
+
+        await MainActor.run {
+            self.isProcessing = true
+        }
+        defer {
+            Task { @MainActor in
+                self.isProcessing = false
+            }
+        }
+
+        return try await retryWithExponentialBackoff {
+            let query = AudioTranscriptionQuery(
+                file: audioData,
+                fileType: .m4a,
+                model: .whisper_1,
+                responseFormat: .json
+            )
+
+            let result = try await unwrappedClient.audioTranscriptions(query: query)
+
+            return VoiceTranscription(
+                text: result.text,
+                duration: nil,
+                language: nil
+            )
+        }
+    }
+
+    // MARK: - Chat Completions with Structured Outputs
+    // Note: Using raw HTTP for structured outputs as MacPaw library doesn't have full support yet
+
+    private let baseURL = "https://api.openai.com/v1/chat/completions"
 
     func analyzeFood(imageData: Data) async throws -> FoodAnalysis {
         guard hasAPIKey else {
@@ -160,45 +220,18 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
 
         let messages: [[String: Any]] = [
             [
+                "role": "system",
+                "content": "Analyze food images for nutritional data. Be realistic with portions, account for cooking methods and condiments."
+            ],
+            [
                 "role": "user",
                 "content": [
-                    ["type": "text", "text": """
-Analyze this food image and provide accurate nutritional information.
-
-IMPORTANT GUIDELINES:
-- Be REALISTIC with portion sizes - consider typical serving sizes people actually eat
-- For prepared dishes, consider all ingredients including oils, butter, sauces
-- Don't underestimate - it's better to slightly overestimate than underestimate calories
-- Consider cooking methods (fried foods have more calories than steamed)
-- Account for condiments, dressings, and toppings visible in the image
-
-For each food item, provide:
-- name: Clear descriptive name
-- quantity: Realistic portion (e.g., "1 medium plate", "2 slices", "1 cup")
-- estimatedCalories: Calories for that portion (be realistic, not conservative)
-- protein: grams of protein
-- carbs: grams of carbohydrates
-- fat: grams of fat
-- fiber: grams of fiber
-
-Return JSON format:
-{
-  "items": [{"name": "...", "quantity": "...", "estimatedCalories": X, "protein": X, "carbs": X, "fat": X, "fiber": X}],
-  "totalCalories": X,
-  "totalProtein": X,
-  "totalCarbs": X,
-  "totalFat": X,
-  "totalFiber": X
-}
-
-Example: A restaurant burger with fries should be 800-1200 calories, not 400.
-"""],
+                    ["type": "text", "text": "Provide nutritional analysis for this food image."],
                     ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64Image)"]]
                 ]
             ]
         ]
 
-        // Define JSON schema for structured output - GUARANTEES format adherence
         let jsonSchema: [String: Any] = [
             "name": "food_analysis_response",
             "strict": true,
@@ -212,21 +245,21 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
                             "properties": [
                                 "name": ["type": "string"],
                                 "quantity": ["type": "string"],
-                                "estimatedCalories": ["type": "integer"],
-                                "protein": ["type": "number"],
-                                "carbs": ["type": "number"],
-                                "fat": ["type": "number"],
-                                "fiber": ["type": "number"]
+                                "estimatedCalories": ["type": ["integer", "null"]],
+                                "protein": ["type": ["number", "null"]],
+                                "carbs": ["type": ["number", "null"]],
+                                "fat": ["type": ["number", "null"]],
+                                "fiber": ["type": ["number", "null"]]
                             ],
                             "required": ["name", "quantity", "estimatedCalories", "protein", "carbs", "fat", "fiber"],
                             "additionalProperties": false
                         ]
                     ],
-                    "totalCalories": ["type": "integer"],
-                    "totalProtein": ["type": "number"],
-                    "totalCarbs": ["type": "number"],
-                    "totalFat": ["type": "number"],
-                    "totalFiber": ["type": "number"]
+                    "totalCalories": ["type": ["integer", "null"]],
+                    "totalProtein": ["type": ["number", "null"]],
+                    "totalCarbs": ["type": ["number", "null"]],
+                    "totalFat": ["type": ["number", "null"]],
+                    "totalFiber": ["type": ["number", "null"]]
                 ],
                 "required": ["items", "totalCalories", "totalProtein", "totalCarbs", "totalFat", "totalFiber"],
                 "additionalProperties": false
@@ -234,173 +267,61 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         ]
 
         let requestBody: [String: Any] = [
-            "model": "gpt-5",  // GPT-5: Best for complex vision and agentic tasks
+            "model": "gpt-4o",
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 1200,
+   
             "response_format": [
                 "type": "json_schema",
                 "json_schema": jsonSchema
             ]
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: requestBody)
-        var request = URLRequest(url: URL(string: baseURL)!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
-
-        let (responseData, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw OpenAIError.httpError(httpResponse.statusCode)
-        }
-
-        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-        let content = json?["choices"] as? [[String: Any]]
-        let message = content?.first?["message"] as? [String: Any]
-        let text = message?["content"] as? String ?? ""
-
-        print("📸 ============================================")
-        print("📸 analyzeFood RESPONSE (STRUCTURED)")
-        print("📸 ============================================")
-        print("📸 Structured JSON response: '\(text)'")
-
-        // With structured outputs, no cleaning needed - guaranteed valid JSON!
-        do {
-            let data = text.data(using: .utf8)!
-            let result = try JSONDecoder().decode(FoodAnalysis.self, from: data)
-            print("📸 ✅ Successfully parsed food analysis!")
-            print("📸 Found \(result.items.count) items, Total calories: \(result.totalCalories ?? 0)")
-            print("📸 ============================================")
-            return result
-        } catch {
-            print("📸 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
-            print("📸 Error: \(error)")
-            print("📸 Raw response: \(text)")
-            print("📸 ============================================")
-            throw OpenAIError.invalidResponse
-        }
+        return try await makeStructuredRequest(requestBody: requestBody, emoji: "📸")
     }
 
-    func transcribeAudio(audioData: Data) async throws -> VoiceTranscription {
-        guard hasAPIKey else {
-            throw OpenAIError.noAPIKey
-        }
+    // MARK: - Fast Classification
 
-        await MainActor.run {
-            self.isProcessing = true
-        }
-        defer {
-            Task { @MainActor in
-                self.isProcessing = false
-            }
-        }
-
-        return try await retryWithExponentialBackoff {
-            let boundary = UUID().uuidString
-            var request = URLRequest(url: URL(string: self.whisperURL)!)
-            request.httpMethod = "POST"
-            request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            request.timeoutInterval = 60
-
-            var body = Data()
-
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
-            body.append(audioData)
-            body.append("\r\n".data(using: .utf8)!)
-
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
-            body.append("whisper-1\r\n".data(using: .utf8)!)
-
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
-            body.append("json\r\n".data(using: .utf8)!)
-
-            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-            request.httpBody = body
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw OpenAIError.invalidResponse
-            }
-
-            guard httpResponse.statusCode == 200 else {
-                if httpResponse.statusCode == 429 {
-                    throw OpenAIError.rateLimitExceeded
-                } else if httpResponse.statusCode >= 500 {
-                    throw OpenAIError.serverError
-                } else {
-                    throw OpenAIError.httpError(httpResponse.statusCode)
-                }
-            }
-
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            let text = json?["text"] as? String ?? ""
-
-            return VoiceTranscription(
-                text: text,
-                duration: json?["duration"] as? Double,
-                language: json?["language"] as? String
-            )
-        }
+    struct IntentClassification: Codable {
+        let hasAction: Bool
+        let actionTypes: [String]
     }
-    
-    private func retryWithExponentialBackoff<T>(operation: @escaping () async throws -> T) async throws -> T {
-        var lastError: Error?
-        
-        for attempt in 0..<maxRetries {
-            do {
-                return try await operation()
-            } catch let error as OpenAIError {
-                lastError = error
-                
-                switch error {
-                case .rateLimitExceeded, .serverError:
-                    if attempt < maxRetries - 1 {
-                        let delay = initialRetryDelay * pow(2.0, Double(attempt))
-                        print("🔄 Retry attempt \(attempt + 1)/\(maxRetries) after \(delay)s delay")
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                        continue
-                    }
-                case .networkError:
-                    if attempt < maxRetries - 1 {
-                        let delay = initialRetryDelay * pow(1.5, Double(attempt))
-                        print("🔄 Network retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                        continue
-                    }
-                default:
-                    throw error
-                }
-                
-                throw error
-            } catch {
-                lastError = error
-                
-                if attempt < maxRetries - 1 {
-                    let delay = initialRetryDelay * pow(1.5, Double(attempt))
-                    print("🔄 Generic retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    continue
-                }
-                
-                throw error
-            }
-        }
-        
-        throw lastError ?? OpenAIError.networkError
+
+    private func classifyIntent(transcript: String) async throws -> IntentClassification {
+        print("🔍 ============================================")
+        print("🔍 CLASSIFYING INTENT WITH GPT-4o-MINI")
+        print("🔍 ============================================")
+
+        let messages = [
+            ["role": "system", "content": "You classify voice transcripts quickly. Determine if the user wants to log something."],
+            ["role": "user", "content": "Does this transcript contain a request to log water, food, symptoms, vitamins, or PUQE score? Transcript: \"\(transcript)\""]
+        ]
+
+        let jsonSchema: [String: Any] = [
+            "name": "intent_classification",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "hasAction": ["type": "boolean"],
+                    "actionTypes": ["type": "array", "items": ["type": "string"]]
+                ],
+                "required": ["hasAction", "actionTypes"],
+                "additionalProperties": false
+            ]
+        ]
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": messages,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": jsonSchema
+            ]
+        ]
+
+        let result: IntentClassification = try await makeStructuredRequest(requestBody: requestBody, emoji: "🔍")
+        print("🔍 Classification result: hasAction=\(result.hasAction), types=\(result.actionTypes)")
+        return result
     }
 
     func extractVoiceActions(from transcript: String) async throws -> [VoiceAction] {
@@ -417,103 +338,105 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
             }
         }
 
+        // Step 1: Fast classification with gpt-5-mini
+        let classification = try await classifyIntent(transcript: transcript)
+
+        // If no action detected, return empty array quickly
+        if !classification.hasAction {
+            print("🔍 ✅ No action detected, skipping full extraction")
+            return []
+        }
+
+        print("🔍 ✅ Action detected, proceeding with full extraction")
+
         let currentDate = Date()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let currentTimestamp = formatter.string(from: currentDate)
-        
-        // Get current hour for context
-        let calendar = Calendar.current
-        let currentHour = calendar.component(.hour, from: currentDate)
-        
-        let prompt = """
-        Analyze this voice transcript and extract any actions the user wants to perform.
-        Current timestamp: \(currentTimestamp)
-        Current hour: \(currentHour):00
 
-        Return JSON array of actions with type, details, and confidence.
+        let systemPrompt = """
+        Extract logging actions from voice transcripts.
+        Current time: \(currentTimestamp)
+        Parse natural time references (breakfast=08:00, lunch=12:00, dinner=18:00).
 
-        Types: log_water, log_food, log_symptom, log_vitamin, log_puqe, add_vitamin, unknown
+        CRITICAL MEAL DISAMBIGUATION RULES:
+        1. Detect compound meals vs. separate food items using context clues:
+           - Conjunctions ("and", "with", "plus") usually indicate a SINGLE MEAL with multiple components
+           - Sequential mentions ("then I had", "after that") indicate SEPARATE food items
+           - Cooking context ("I made", "I cooked") indicates a SINGLE RECIPE/MEAL
 
-        TIME PARSING RULES - CRITICAL:
-        1. ALWAYS include a "timestamp" field in ISO 8601 format
-        2. Parse natural language time references:
-           
-           MEAL TIMES (use these specific hours):
-           - "breakfast" or "this morning" -> today at 08:00
-           - "lunch" or "midday" -> today at 12:00  
-           - "dinner" or "supper" or "this evening" -> today at 18:00
-           - "snack" -> use current time unless other context given
-           
-           RELATIVE TIMES:
-           - "just now" or no time mentioned -> use current timestamp
-           - "X hours ago" -> subtract X hours from current time
-           - "X minutes ago" -> subtract X minutes from current time
-           - "earlier" -> subtract 2 hours from current time
-           - "this afternoon" -> today at 14:00
-           - "last night" -> yesterday at 20:00
-           - "yesterday" + meal -> yesterday at meal time
-           
-           SPECIFIC TIMES:
-           - "at 2pm" or "at 14:00" -> today at that time
-           - "at 2pm yesterday" -> yesterday at that time
-           
-        3. For log_food:
-           - Put FULL food description including quantity/portion in "item" field
-             Examples: "one tiny walnut", "2 slices of pizza", "large bowl of pasta", "small apple"
-           - Extract quantity descriptor words (tiny, small, medium, large, huge, handful, etc.)
-           - Include the quantity number if mentioned ("1 walnut", "2 eggs", "half an avocado")
-           - If meal type mentioned or implied, add "mealType": "breakfast/lunch/dinner/snack"
-           - Parse meal times even if just food is mentioned with meal context
+        2. For COMPOUND MEALS (e.g., "porkchop and potatoes", "chicken with rice"):
+           - Set isCompoundMeal: true
+           - Set item to a descriptive meal name (e.g., "Porkchop with Potatoes")
+           - List each component in components array with name and quantity
+           - Calculate COMBINED calories for the entire meal
 
-           BAD: "item": "walnut" (missing quantity!)
-           GOOD: "item": "one tiny walnut" (includes quantity and size)
+        3. For SEPARATE ITEMS (e.g., "I ate a banana then later had some chips"):
+           - Create separate log_food actions
+           - Set isCompoundMeal: false or null
+           - Leave components null
 
-        4. For log_vitamin: put vitamin/supplement name in "vitaminName" field (logs taking existing vitamin)
-        5. For log_water: put amount and unit in details
-        6. For log_symptom: put symptoms array in "symptoms" field
-        7. For add_vitamin: ONLY use when user wants to ADD/CREATE/SET UP a new vitamin/supplement
-           - Put name in "vitaminName" field
-           - Extract "frequency": "daily", "twice daily", "three times daily", "weekly", etc.
-           - Extract "timesPerDay": 1, 2, 3, etc. (from frequency)
-           - Extract "dosage": "1 tablet", "500mg", "2 capsules", etc. (if mentioned)
-           - Example: "add my prenatal vitamin I should take it 2x a day"
-             -> {"type": "add_vitamin", "details": {"vitaminName": "Prenatal Vitamin", "frequency": "twice daily", "timesPerDay": 2, "dosage": "1 tablet"}, "confidence": 0.9}
+        FEW-SHOT EXAMPLES:
 
-        Transcript: "\(transcript)"
+        Example 1 - Compound meal:
+        Input: "I ate porkchop and potatoes"
+        Output: {
+          "type": "log_food",
+          "details": {
+            "item": "Porkchop with Potatoes",
+            "isCompoundMeal": true,
+            "components": [
+              {"name": "porkchop", "quantity": "1 piece"},
+              {"name": "potatoes", "quantity": "1 serving"}
+            ],
+            "calories": "550"
+          }
+        }
 
-        Example responses (note ALL have timestamps and FULL food descriptions):
-        - "I ate a potato for breakfast":
-          [{"type": "log_food", "details": {"item": "1 medium potato", "mealType": "breakfast", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+        Example 2 - Separate items:
+        Input: "I had a banana for breakfast, then later some crackers"
+        Output: [
+          {
+            "type": "log_food",
+            "details": {
+              "item": "banana",
+              "isCompoundMeal": false,
+              "mealType": "breakfast",
+              "timestamp": "08:00"
+            }
+          },
+          {
+            "type": "log_food",
+            "details": {
+              "item": "crackers",
+              "isCompoundMeal": false
+            }
+          }
+        ]
 
-        - "I had a small banana for supper":
-          [{"type": "log_food", "details": {"item": "1 small banana", "mealType": "dinner", "timestamp": "\(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+        Example 3 - Compound meal with cooking:
+        Input: "I made chicken with broccoli and rice"
+        Output: {
+          "type": "log_food",
+          "details": {
+            "item": "Chicken with Broccoli and Rice",
+            "isCompoundMeal": true,
+            "components": [
+              {"name": "chicken", "quantity": "1 breast"},
+              {"name": "broccoli", "quantity": "1 cup"},
+              {"name": "rice", "quantity": "1 cup"}
+            ]
+          }
+        }
 
-        - "I ate one tiny walnut":
-          [{"type": "log_food", "details": {"item": "one tiny walnut", "timestamp": "\(currentTimestamp)"}, "confidence": 0.95}]
-
-        - "I had 2 slices of pizza and a large coke":
-          [{"type": "log_food", "details": {"item": "2 slices of pizza", "timestamp": "\(currentTimestamp)"}, "confidence": 0.95}, {"type": "log_food", "details": {"item": "1 large coke", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
-        
-        - "I drank water 2 hours ago":
-          [{"type": "log_water", "details": {"amount": "some", "unit": "water", "timestamp": "\(currentDate.addingTimeInterval(-7200).ISO8601Format())"}, "confidence": 0.85}]
-        
-        - "I took my vitamins this morning":
-          [{"type": "log_vitamin", "details": {"vitaminName": "vitamins", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.95}]
-
-        - "I ate pasta" (no quantity specified, infer reasonable portion):
-          [{"type": "log_food", "details": {"item": "1 bowl of pasta", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
-
-        Return ONLY valid JSON array. Every action MUST have a timestamp field.
-        IMPORTANT: Food items MUST include quantity/portion information!
+        Include full quantity/portion in food items when specified.
         """
 
         let messages = [
-            ["role": "system", "content": "You are an AI assistant that extracts actions from voice transcripts."],
-            ["role": "user", "content": prompt]
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": "Extract actions from: \"\(transcript)\""]
         ]
 
-        // Define JSON schema for structured output - GUARANTEES format adherence
         let jsonSchema: [String: Any] = [
             "name": "voice_actions_response",
             "strict": true,
@@ -530,21 +453,34 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
                                 "details": [
                                     "type": "object",
                                     "properties": [
-                                        "item": ["type": "string"],
-                                        "amount": ["type": "string"],
-                                        "unit": ["type": "string"],
-                                        "calories": ["type": "string"],
-                                        "severity": ["type": "string"],
-                                        "mealType": ["type": "string"],
-                                        "symptoms": ["type": "array", "items": ["type": "string"]],
-                                        "vitaminName": ["type": "string"],
-                                        "notes": ["type": "string"],
-                                        "timestamp": ["type": "string"],
-                                        "frequency": ["type": "string"],
-                                        "dosage": ["type": "string"],
-                                        "timesPerDay": ["type": "integer"]
+                                        "item": ["type": ["string", "null"]],
+                                        "amount": ["type": ["string", "null"]],
+                                        "unit": ["type": ["string", "null"]],
+                                        "calories": ["type": ["string", "null"]],
+                                        "severity": ["type": ["string", "null"]],
+                                        "mealType": ["type": ["string", "null"]],
+                                        "symptoms": ["type": ["array", "null"], "items": ["type": "string"]],
+                                        "vitaminName": ["type": ["string", "null"]],
+                                        "notes": ["type": ["string", "null"]],
+                                        "timestamp": ["type": ["string", "null"]],
+                                        "frequency": ["type": ["string", "null"]],
+                                        "dosage": ["type": ["string", "null"]],
+                                        "timesPerDay": ["type": ["integer", "null"]],
+                                        "isCompoundMeal": ["type": ["boolean", "null"]],
+                                        "components": [
+                                            "type": ["array", "null"],
+                                            "items": [
+                                                "type": "object",
+                                                "properties": [
+                                                    "name": ["type": "string"],
+                                                    "quantity": ["type": ["string", "null"]]
+                                                ],
+                                                "required": ["name", "quantity"],
+                                                "additionalProperties": false
+                                            ]
+                                        ]
                                     ],
-                                    "required": [],
+                                    "required": ["item", "amount", "unit", "calories", "severity", "mealType", "symptoms", "vitaminName", "notes", "timestamp", "frequency", "dosage", "timesPerDay", "isCompoundMeal", "components"],
                                     "additionalProperties": false
                                 ]
                             ],
@@ -559,65 +495,22 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         ]
 
         let requestBody: [String: Any] = [
-            "model": "gpt-5",  // GPT-5: Best for complex voice understanding
+            "model": "gpt-4o",
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 600,
+
             "response_format": [
                 "type": "json_schema",
                 "json_schema": jsonSchema
             ]
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: requestBody)
-        var request = URLRequest(url: URL(string: baseURL)!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
-
-        let (responseData, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
+        struct ActionsWrapper: Codable {
+            let actions: [VoiceAction]
         }
 
-        guard httpResponse.statusCode == 200 else {
-            throw OpenAIError.httpError(httpResponse.statusCode)
-        }
-
-        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-        let content = json?["choices"] as? [[String: Any]]
-        let message = content?.first?["message"] as? [String: Any]
-        let text = message?["content"] as? String ?? ""
-
-        print("🎙️ ============================================")
-        print("🎙️ extractVoiceActions RESPONSE (STRUCTURED)")
-        print("🎙️ ============================================")
-        print("🎙️ Transcript: \(transcript)")
-        print("🎙️ Structured JSON response: '\(text)'")
-
-        // With structured outputs, no cleaning needed - guaranteed valid JSON!
-        do {
-            let data = text.data(using: .utf8)!
-            // Response is wrapped in {"actions": [...]}
-            struct ActionsWrapper: Codable {
-                let actions: [VoiceAction]
-            }
-            let wrapper = try JSONDecoder().decode(ActionsWrapper.self, from: data)
-            print("🎙️ ✅ Successfully parsed \(wrapper.actions.count) voice actions!")
-            for (index, action) in wrapper.actions.enumerated() {
-                print("🎙️   Action \(index + 1): \(action.type.rawValue) (confidence: \(action.confidence))")
-            }
-            print("🎙️ ============================================")
-            return wrapper.actions
-        } catch {
-            print("🎙️ ❌ UNEXPECTED ERROR - structured outputs should never fail!")
-            print("🎙️ Error: \(error)")
-            print("🎙️ Raw response: \(text)")
-            print("🎙️ ============================================")
-            return []
-        }
+        let wrapper: ActionsWrapper = try await makeStructuredRequest(requestBody: requestBody, emoji: "🎙️")
+        print("🎙️ ✅ Successfully parsed \(wrapper.actions.count) voice actions!")
+        return wrapper.actions
     }
 
     struct FoodMacros {
@@ -632,44 +525,83 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
             throw OpenAIError.noAPIKey
         }
 
-        let prompt = """
-        Estimate nutritional macros for: "\(foodName)"
+        print("🍔🍔🍔 ============================================")
+        print("🍔🍔🍔 ESTIMATE FOOD MACROS - START")
+        print("🍔🍔🍔 ============================================")
+        print("🍔 Input Food Name: '\(foodName)'")
+        print("🍔 Model: gpt-4o")
+        print("🍔 Timestamp: \(Date())")
 
-        CRITICAL INSTRUCTIONS:
-        - Pay CLOSE ATTENTION to quantity descriptors (tiny, small, medium, large, handful, etc.)
-        - Pay CLOSE ATTENTION to count numbers (1, 2, half, quarter, etc.)
-        - Use USDA/accurate nutritional data
-        - Be PRECISE with portions - "one tiny walnut" ≠ "walnut" ≠ "handful of walnuts"
+        let systemPrompt = """
+        You are a precise nutrition calculator using USDA database standards.
 
-        PORTION SIZE GUIDE:
-        - "tiny" or "small" = 50-70% of standard serving
-        - "medium" or no descriptor = 100% standard serving
-        - "large" or "big" = 150-200% of standard serving
-        - "1" or "one" of something = exactly one unit
-        - "2" or "two" = exactly two units
-        - "handful" = ~1oz or ~28g
-        - "bowl" = ~1.5-2 cups
-        - "plate" = ~2-3 cups
+        CHAIN-OF-THOUGHT REASONING PROCESS:
+        1. PARSE: Identify the food item(s) and quantity
+        2. RECALL: Retrieve USDA standard values for each component
+        3. CALCULATE: Apply quantity multipliers and size adjustments
+        4. VERIFY: Check if calorie math matches macros (protein×4 + carbs×4 + fat×9)
+        5. OUTPUT: Return final values
 
-        EXAMPLES (showing precision):
-        - "one tiny walnut" -> 13-18 cal (1 walnut half)
-        - "1 medium walnut" -> 26-35 cal (1 whole walnut)
-        - "handful of walnuts" -> 180-190 cal (~14 walnut halves)
-        - "1 bowl of pasta" -> 350-400 cal (cooked, with sauce assumed)
-        - "pasta" or "1 serving pasta" -> 200-220 cal (dry weight equivalent)
-        - "2 slices of pizza" -> 550-600 cal (restaurant style)
-        - "1 tiny apple" -> 50-60 cal (2.5" diameter)
-        - "1 large apple" -> 120-130 cal (3.5" diameter)
+        CRITICAL RULES:
+        1. If a QUANTITY is specified (e.g., "3 bananas", "2 slices pizza"), calculate the TOTAL nutrition for that exact quantity
+        2. If quantity is a NUMBER (3, 2, 4, etc.), multiply the standard portion by that number
+        3. For COMPOUND MEALS with multiple components, sum all components together
 
-        Provide accurate nutritional information for the EXACT portion described.
+        USDA REFERENCE VALUES:
+        - 1 medium banana (118g) = 105 cal, 27g carbs, 1.3g protein, 0.4g fat
+        - 1 medium apple (182g) = 95 cal, 25g carbs, 0.5g protein, 0.3g fat
+        - 1 slice pizza (cheese, 107g) = 285 cal, 36g carbs, 12g protein, 10g fat
+        - 1 large egg (50g) = 70 cal, 0.4g carbs, 6g protein, 5g fat
+        - 1 cup white rice cooked (158g) = 205 cal, 45g carbs, 4g protein, 0.4g fat
+        - 1 medium porkchop (85g) = 220 cal, 0g carbs, 26g protein, 12g fat
+        - 1 cup mashed potatoes (210g) = 210 cal, 37g carbs, 4g protein, 6g fat
+        - 1 chicken breast (172g) = 284 cal, 0g carbs, 53g protein, 6g fat
+        - 1 cup cooked broccoli (156g) = 55 cal, 11g carbs, 4g protein, 0.6g fat
+
+        SIZE MODIFIERS:
+        - Small = 0.75x standard
+        - Medium = 1.0x standard (default if not specified)
+        - Large = 1.3x standard
+        - Handful = ~30g for nuts/berries
+
+        ROUNDING:
+        - Calories: nearest 5
+        - Macros: nearest whole number
+
+        EXAMPLES WITH REASONING:
+
+        Example 1: "3 bananas"
+        REASONING: 1 banana = 105 cal → 3 × 105 = 315 cal
+        OUTPUT: 315 calories, 81g carbs, 4g protein, 1g fat
+
+        Example 2: "porkchop with potatoes"
+        REASONING:
+        - 1 porkchop = 220 cal, 0g carbs, 26g protein, 12g fat
+        - 1 cup potatoes = 210 cal, 37g carbs, 4g protein, 6g fat
+        - TOTAL = 430 cal, 37g carbs, 30g protein, 18g fat
+        VERIFY: (30×4) + (37×4) + (18×9) = 120 + 148 + 162 = 430 ✓
+        OUTPUT: 430 calories, 37g carbs, 30g protein, 18g fat
+
+        Example 3: "chicken with broccoli and rice"
+        REASONING:
+        - 1 chicken breast = 284 cal, 0g carbs, 53g protein, 6g fat
+        - 1 cup broccoli = 55 cal, 11g carbs, 4g protein, 0.6g fat
+        - 1 cup rice = 205 cal, 45g carbs, 4g protein, 0.4g fat
+        - TOTAL = 544 cal, 56g carbs, 61g protein, 7g fat
+        VERIFY: (61×4) + (56×4) + (7×9) = 244 + 224 + 63 = 531 ≈ 544 ✓ (within 15 cal)
+        OUTPUT: 545 calories, 56g carbs, 61g protein, 7g fat
         """
 
         let messages = [
-            ["role": "system", "content": "You are a nutrition expert that provides accurate macro estimates for foods."],
-            ["role": "user", "content": prompt]
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": "Calculate total nutrition for the exact quantity specified: \"\(foodName)\""]
         ]
 
-        // Define JSON schema for structured output - GUARANTEES format adherence
+        print("🍔 System Prompt Length: \(systemPrompt.count) characters")
+        if let userMessage = messages[1]["content"] as? String {
+            print("🍔 User Message: '\(userMessage)'")
+        }
+
         let jsonSchema: [String: Any] = [
             "name": "food_macros_response",
             "strict": true,
@@ -687,69 +619,67 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         ]
 
         let requestBody: [String: Any] = [
-            "model": "gpt-5-mini",  // GPT-5 mini: Faster, cost-efficient for well-defined tasks
+            "model": "gpt-4o",  // ✅ Upgraded from gpt-4o-mini
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 150,
+
             "response_format": [
                 "type": "json_schema",
                 "json_schema": jsonSchema
             ]
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: requestBody)
-        var request = URLRequest(url: URL(string: baseURL)!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
+        print("🍔 Sending request to OpenAI...")
+        let result: [String: Int] = try await makeStructuredRequest(requestBody: requestBody, emoji: "🍔")
 
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        print("🍔🍔🍔 ============================================")
+        print("🍔🍔🍔 OPENAI RESPONSE RECEIVED")
+        print("🍔🍔🍔 ============================================")
+        print("🍔 Calories: \(result["calories"]!)")
+        print("🍔 Protein: \(result["protein"]!)g")
+        print("🍔 Carbs: \(result["carbs"]!)g")
+        print("🍔 Fat: \(result["fat"]!)g")
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
+        let calories = result["calories"]!
+        let protein = result["protein"]!
+        let carbs = result["carbs"]!
+        let fat = result["fat"]!
+
+        // VALIDATION: Check macro math
+        let calculatedCalories = (protein * 4) + (carbs * 4) + (fat * 9)
+        let discrepancy = abs(calories - calculatedCalories)
+
+        print("🍔 Validation - Calculated from macros: \(calculatedCalories) cal")
+        print("🍔 Validation - Discrepancy: \(discrepancy) cal")
+
+        if discrepancy > 50 {
+            print("⚠️⚠️⚠️ WARNING: Large calorie discrepancy!")
+            print("⚠️ Reported: \(calories) cal")
+            print("⚠️ Calculated: \(calculatedCalories) cal")
+            print("⚠️ Food: '\(foodName)'")
         }
 
-        guard httpResponse.statusCode == 200 else {
-            throw OpenAIError.httpError(httpResponse.statusCode)
+        // Check for obviously wrong banana estimates
+        if foodName.lowercased().contains("banana") && calories < 80 {
+            print("⚠️⚠️⚠️ WARNING: Banana estimate seems too low!")
+            print("⚠️ Got \(calories) cal for '\(foodName)'")
+            print("⚠️ Expected ~105 cal per banana")
         }
 
-        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-        let content = json?["choices"] as? [[String: Any]]
-        let message = content?.first?["message"] as? [String: Any]
-        let text = message?["content"] as? String ?? ""
-
-        print("🍔 ============================================")
-        print("🍔 estimateFoodMacros RESPONSE (STRUCTURED)")
-        print("🍔 ============================================")
-        print("🍔 Food name: \(foodName)")
-        print("🍔 Structured JSON response: '\(text)'")
-
-        // With structured outputs, no cleaning needed - guaranteed valid JSON!
-        do {
-            let data = text.data(using: .utf8)!
-            let result = try JSONDecoder().decode([String: Int].self, from: data)
-            print("🍔 ✅ Successfully parsed structured JSON!")
-            print("🍔 Calories: \(result["calories"]!)")
-            print("🍔 Protein: \(result["protein"]!)g")
-            print("🍔 Carbs: \(result["carbs"]!)g")
-            print("🍔 Fat: \(result["fat"]!)g")
-            print("🍔 ============================================")
-
-            // No fallbacks needed - structured outputs guarantee all fields exist
-            return FoodMacros(
-                calories: result["calories"]!,
-                protein: result["protein"]!,
-                carbs: result["carbs"]!,
-                fat: result["fat"]!
-            )
-        } catch {
-            print("🍔 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
-            print("🍔 Error: \(error)")
-            print("🍔 Raw response: \(text)")
-            print("🍔 ============================================")
-            throw OpenAIError.invalidResponse
+        // Check for quantity multipliers
+        let words = foodName.lowercased().components(separatedBy: .whitespaces)
+        if let firstWord = words.first, let quantity = Int(firstWord), quantity > 1 {
+            print("🍔 ✅ Detected quantity: \(quantity)")
+            print("🍔 ✅ Calories per unit: ~\(calories / quantity)")
         }
+
+        print("🍔🍔🍔 ============================================")
+
+        return FoodMacros(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat
+        )
     }
 
     func generateFoodSuggestions(nauseaLevel: Int, preferences: [String] = []) async throws -> [FoodSuggestion] {
@@ -774,7 +704,6 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
             ["role": "user", "content": prompt]
         ]
 
-        // Define JSON schema for structured output - GUARANTEES format adherence
         let jsonSchema: [String: Any] = [
             "name": "food_suggestions_response",
             "strict": true,
@@ -803,22 +732,45 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         ]
 
         let requestBody: [String: Any] = [
-            "model": "gpt-5-mini",  // GPT-5 mini: Faster, cost-efficient for food suggestions
+            "model": "gpt-4o-mini",
             "messages": messages,
-            "temperature": 0.8,  // Higher creativity for food suggestions
-            "max_tokens": 900,
+  
             "response_format": [
                 "type": "json_schema",
                 "json_schema": jsonSchema
             ]
         ]
 
+        struct SuggestionsWrapper: Codable {
+            let suggestions: [FoodSuggestion]
+        }
+
+        let wrapper: SuggestionsWrapper = try await makeStructuredRequest(requestBody: requestBody, emoji: "🥗")
+        return wrapper.suggestions
+    }
+
+    // MARK: - Generic Structured Request Helper
+
+    private func makeStructuredRequest<T: Decodable>(requestBody: [String: Any], emoji: String) async throws -> T {
+        print("\(emoji) ============================================")
+        print("\(emoji) MAKING REQUEST TO OPENAI")
+        print("\(emoji) ============================================")
+
         let data = try JSONSerialization.data(withJSONObject: requestBody)
+
+        // Log the request body
+        if let requestString = String(data: data, encoding: .utf8) {
+            print("\(emoji) REQUEST BODY:")
+            print(requestString)
+        }
+
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
+
+        print("\(emoji) Sending request to: \(baseURL)")
 
         let (responseData, response) = try await URLSession.shared.data(for: request)
 
@@ -826,7 +778,25 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
             throw OpenAIError.invalidResponse
         }
 
+        print("\(emoji) Response status code: \(httpResponse.statusCode)")
+
         guard httpResponse.statusCode == 200 else {
+            // Log the actual error response from OpenAI
+            print("\(emoji) ❌❌❌ ============================================")
+            print("\(emoji) ❌❌❌ REQUEST FAILED")
+            print("\(emoji) ❌❌❌ ============================================")
+            if let errorJSON = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let error = errorJSON["error"] as? [String: Any] {
+                print("\(emoji) ❌ OpenAI API Error (\(httpResponse.statusCode)):")
+                print("\(emoji) ❌ Error message: \(error["message"] ?? "no message")")
+                print("\(emoji) ❌ Error type: \(error["type"] ?? "no type")")
+                print("\(emoji) ❌ Error code: \(error["code"] ?? "no code")")
+                print("\(emoji) ❌ Full error object: \(error)")
+            } else if let errorString = String(data: responseData, encoding: .utf8) {
+                print("\(emoji) ❌ OpenAI API Error (\(httpResponse.statusCode)):")
+                print("\(emoji) ❌ Raw response: \(errorString)")
+            }
+            print("\(emoji) ❌❌❌ ============================================")
             throw OpenAIError.httpError(httpResponse.statusCode)
         }
 
@@ -835,31 +805,75 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         let message = content?.first?["message"] as? [String: Any]
         let text = message?["content"] as? String ?? ""
 
-        print("🥗 ============================================")
-        print("🥗 generateFoodSuggestions RESPONSE (STRUCTURED)")
-        print("🥗 ============================================")
-        print("🥗 Nausea level: \(nauseaLevel)/10")
-        print("🥗 Structured JSON response: '\(text)'")
+        print("\(emoji) ============================================")
+        print("\(emoji) STRUCTURED OUTPUT RESPONSE")
+        print("\(emoji) ============================================")
+        print("\(emoji) JSON response: '\(text)'")
 
-        // With structured outputs, no cleaning needed - guaranteed valid JSON!
         do {
             let data = text.data(using: .utf8)!
-            // Response is wrapped in {"suggestions": [...]}
-            struct SuggestionsWrapper: Codable {
-                let suggestions: [FoodSuggestion]
-            }
-            let wrapper = try JSONDecoder().decode(SuggestionsWrapper.self, from: data)
-            print("🥗 ✅ Successfully parsed \(wrapper.suggestions.count) food suggestions!")
-            print("🥗 ============================================")
-            return wrapper.suggestions
+            let result = try JSONDecoder().decode(T.self, from: data)
+            print("\(emoji) ✅ Successfully parsed structured JSON!")
+            print("\(emoji) ============================================")
+            return result
         } catch {
-            print("🥗 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
-            print("🥗 Error: \(error)")
-            print("🥗 Raw response: \(text)")
-            print("🥗 ============================================")
-            return []
+            print("\(emoji) ❌ UNEXPECTED ERROR - structured outputs should never fail!")
+            print("\(emoji) Error: \(error)")
+            print("\(emoji) Raw response: \(text)")
+            print("\(emoji) ============================================")
+            throw OpenAIError.invalidResponse
         }
     }
+
+    // MARK: - Retry Logic
+
+    private func retryWithExponentialBackoff<T>(operation: @escaping () async throws -> T) async throws -> T {
+        var lastError: Error?
+
+        for attempt in 0..<maxRetries {
+            do {
+                return try await operation()
+            } catch let error as OpenAIError {
+                lastError = error
+
+                switch error {
+                case .rateLimitExceeded, .serverError:
+                    if attempt < maxRetries - 1 {
+                        let delay = initialRetryDelay * pow(2.0, Double(attempt))
+                        print("🔄 Retry attempt \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                case .networkError:
+                    if attempt < maxRetries - 1 {
+                        let delay = initialRetryDelay * pow(1.5, Double(attempt))
+                        print("🔄 Network retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                default:
+                    throw error
+                }
+
+                throw error
+            } catch {
+                lastError = error
+
+                if attempt < maxRetries - 1 {
+                    let delay = initialRetryDelay * pow(1.5, Double(attempt))
+                    print("🔄 Generic retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                throw error
+            }
+        }
+
+        throw lastError ?? OpenAIError.networkError
+    }
+
+    // MARK: - Error Types
 
     enum OpenAIError: LocalizedError {
         case noAPIKey
@@ -894,11 +908,11 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
                 return "OpenAI servers are experiencing issues. Please try again in a few minutes."
             }
         }
-        
+
         private func getDetailedHTTPError(_ code: Int) -> String {
             switch code {
             case 400:
-                return "Bad request. The audio format may be invalid."
+                return "Bad request. Please check the request format."
             case 401:
                 return "Invalid API key. Please check your OpenAI API key in Settings."
             case 403:
@@ -911,7 +925,7 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
                 return "HTTP error \(code). Please try again later."
             }
         }
-        
+
         var recoverySuggestion: String? {
             switch self {
             case .noAPIKey:

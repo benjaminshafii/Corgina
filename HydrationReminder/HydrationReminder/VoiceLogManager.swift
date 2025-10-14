@@ -512,11 +512,52 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 throw VoiceError.processingFailed("No food name provided")
             }
         case .logVitamin:
-            if let vitaminName = action.details.item,
+            if let vitaminName = action.details.item ?? action.details.vitaminName,
                let supplementManager = supplementManager {
                 supplementManager.logIntakeByName(vitaminName, taken: true)
             } else {
                 throw VoiceError.processingFailed("Invalid vitamin data")
+            }
+        case .addVitamin:
+            if let vitaminName = action.details.vitaminName,
+               let supplementManager = supplementManager {
+                print("💊 Adding new custom vitamin: \(vitaminName)")
+
+                // Parse frequency
+                let frequencyStr = action.details.frequency?.lowercased() ?? "daily"
+                let frequency: Supplement.SupplementFrequency
+                if frequencyStr.contains("twice") || frequencyStr.contains("2") {
+                    frequency = .twiceDaily
+                } else if frequencyStr.contains("three") || frequencyStr.contains("3") {
+                    frequency = .thriceDaily
+                } else if frequencyStr.contains("week") {
+                    frequency = .weekly
+                } else if frequencyStr.contains("other day") || frequencyStr.contains("every other") {
+                    frequency = .everyOtherDay
+                } else if frequencyStr.contains("need") {
+                    frequency = .asNeeded
+                } else {
+                    frequency = .daily
+                }
+
+                // Parse dosage
+                let dosage = action.details.dosage ?? "1 tablet"
+
+                // Create the supplement
+                let newSupplement = Supplement(
+                    name: vitaminName,
+                    dosage: dosage,
+                    frequency: frequency,
+                    reminderTimes: [Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!],
+                    remindersEnabled: true,
+                    notes: "Added via voice command",
+                    isEssential: vitaminName.lowercased().contains("prenatal")
+                )
+
+                supplementManager.addSupplement(newSupplement)
+                print("💊 ✅ Custom vitamin added successfully")
+            } else {
+                throw VoiceError.processingFailed("Invalid vitamin data for adding")
             }
         case .logSymptom:
             if let symptoms = action.details.symptoms, !symptoms.isEmpty {

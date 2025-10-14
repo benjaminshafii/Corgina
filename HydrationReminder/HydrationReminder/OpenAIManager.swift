@@ -77,6 +77,7 @@ struct VoiceAction: Codable, Equatable {
         case logSymptom = "log_symptom"
         case logVitamin = "log_vitamin"
         case logPUQE = "log_puqe"
+        case addVitamin = "add_vitamin"  // New: create a custom vitamin/supplement
         case unknown = "unknown"
     }
 
@@ -95,6 +96,9 @@ struct VoiceAction: Codable, Equatable {
         let vitaminName: String?
         let notes: String?
         let timestamp: String?  // ISO 8601 format from GPT
+        let frequency: String?  // For add_vitamin: "daily", "twice daily", "weekly", etc.
+        let dosage: String?  // For add_vitamin: "1 tablet", "500mg", etc.
+        let timesPerDay: Int?  // For add_vitamin: how many times per day
     }
 }
 
@@ -404,10 +408,10 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         Analyze this voice transcript and extract any actions the user wants to perform.
         Current timestamp: \(currentTimestamp)
         Current hour: \(currentHour):00
-        
+
         Return JSON array of actions with type, details, and confidence.
 
-        Types: log_water, log_food, log_symptom, log_vitamin, log_puqe, unknown
+        Types: log_water, log_food, log_symptom, log_vitamin, log_puqe, add_vitamin, unknown
 
         TIME PARSING RULES - CRITICAL:
         1. ALWAYS include a "timestamp" field in ISO 8601 format
@@ -432,14 +436,21 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
            - "at 2pm" or "at 14:00" -> today at that time
            - "at 2pm yesterday" -> yesterday at that time
            
-        3. For log_food: 
+        3. For log_food:
            - Put food name in "item" field
            - If meal type mentioned or implied, add "mealType": "breakfast/lunch/dinner/snack"
            - Parse meal times even if just food is mentioned with meal context
-           
-        4. For log_vitamin: put vitamin/supplement name in "vitaminName" field
+
+        4. For log_vitamin: put vitamin/supplement name in "vitaminName" field (logs taking existing vitamin)
         5. For log_water: put amount and unit in details
         6. For log_symptom: put symptoms array in "symptoms" field
+        7. For add_vitamin: ONLY use when user wants to ADD/CREATE/SET UP a new vitamin/supplement
+           - Put name in "vitaminName" field
+           - Extract "frequency": "daily", "twice daily", "three times daily", "weekly", etc.
+           - Extract "timesPerDay": 1, 2, 3, etc. (from frequency)
+           - Extract "dosage": "1 tablet", "500mg", "2 capsules", etc. (if mentioned)
+           - Example: "add my prenatal vitamin I should take it 2x a day"
+             -> {"type": "add_vitamin", "details": {"vitaminName": "Prenatal Vitamin", "frequency": "twice daily", "timesPerDay": 2, "dosage": "1 tablet"}, "confidence": 0.9}
 
         Transcript: "\(transcript)"
 

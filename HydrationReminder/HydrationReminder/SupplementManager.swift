@@ -242,11 +242,23 @@ class SupplementManager: ObservableObject {
     }
     
     func addFromTemplate(_ templateName: String) {
-        if let template = PregnancySupplements.commonSupplements.first(where: { 
-            $0.name.lowercased() == templateName.lowercased() 
-        }) {
-            var newSupplement = template
-            newSupplement = Supplement(
+        // First try exact match
+        var template = PregnancySupplements.commonSupplements.first(where: {
+            $0.name.lowercased() == templateName.lowercased()
+        })
+
+        // Then try partial match (e.g., "Prenatal" matches "Prenatal Vitamin")
+        if template == nil {
+            let normalizedName = templateName.lowercased()
+            template = PregnancySupplements.commonSupplements.first(where: {
+                $0.name.lowercased().contains(normalizedName) ||
+                normalizedName.contains($0.name.lowercased())
+            })
+        }
+
+        if let template = template {
+            print("💊 Adding supplement from template: \(template.name)")
+            let newSupplement = Supplement(
                 name: template.name,
                 dosage: template.dosage,
                 frequency: template.frequency,
@@ -256,6 +268,8 @@ class SupplementManager: ObservableObject {
                 isEssential: template.isEssential
             )
             addSupplement(newSupplement)
+        } else {
+            print("💊 ⚠️ No template found for: \(templateName)")
         }
     }
     

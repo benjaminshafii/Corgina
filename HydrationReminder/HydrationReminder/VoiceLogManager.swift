@@ -201,27 +201,10 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
             print("⚠️ WARNING: Could not get file attributes: \(error)")
         }
 
-        // Get file duration
-        print("🎤 Step 7: Getting file duration...")
-        let asset = AVURLAsset(url: url)
-        let duration = CMTimeGetSeconds(asset.duration)
-        print("🎤 ✅ Recording duration: \(duration) seconds")
-
-        // Create voice log with the audio file
-        print("🎤 Step 8: Creating voice log...")
-        let voiceLog = VoiceLog(
-            duration: duration,
-            category: currentCategory,
-            fileName: url.lastPathComponent
-        )
-        voiceLogs.append(voiceLog)
-        saveLogs()
-        print("🎤 ✅ Voice log created and saved")
-
         // ⚠️ CRITICAL: Set state to recognizing IMMEDIATELY to prevent drawer from disappearing
         // This must happen BEFORE the async processing starts
         print("🎤🎤🎤 ============================================")
-        print("🎤🎤🎤 STEP 9: SETTING STATE TO PREVENT UI FLICKER")
+        print("🎤🎤🎤 STEP 7: SETTING STATE TO PREVENT UI FLICKER")
         print("🎤🎤🎤 ============================================")
         print("🎤 BEFORE - isProcessingVoice: \(isProcessingVoice)")
         print("🎤 BEFORE - actionRecognitionState: \(actionRecognitionState)")
@@ -233,13 +216,39 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
         print("🎤 AFTER - actionRecognitionState: \(actionRecognitionState)")
         print("🎤 ✅✅✅ State set to .recognizing - UI should stay visible!")
 
-        print("🎤🎤🎤 ============================================")
-        print("🎤🎤🎤 STEP 10: Starting OpenAI processing...")
-        print("🎤🎤🎤 ============================================")
+        // Get file duration asynchronously
+        print("🎤 Step 8: Getting file duration...")
+        Task {
+            let asset = AVURLAsset(url: url)
+            let duration: Double
+            if #available(iOS 16.0, *) {
+                duration = try await CMTimeGetSeconds(asset.load(.duration))
+            } else {
+                duration = CMTimeGetSeconds(asset.duration)
+            }
+            print("🎤 ✅ Recording duration: \(duration) seconds")
 
-        // Process with OpenAI
-        processRecordedAudio(at: url, for: voiceLog)
-        print("🎤 ✅ processRecordedAudio() called (async processing started)")
+            await MainActor.run {
+                // Create voice log with the audio file
+                print("🎤 Step 9: Creating voice log...")
+                let voiceLog = VoiceLog(
+                    duration: duration,
+                    category: self.currentCategory,
+                    fileName: url.lastPathComponent
+                )
+                self.voiceLogs.append(voiceLog)
+                self.saveLogs()
+                print("🎤 ✅ Voice log created and saved")
+
+                print("🎤🎤🎤 ============================================")
+                print("🎤🎤🎤 STEP 10: Starting OpenAI processing...")
+                print("🎤🎤🎤 ============================================")
+
+                // Process with OpenAI
+                self.processRecordedAudio(at: url, for: voiceLog)
+                print("🎤 ✅ processRecordedAudio() called (async processing started)")
+            }
+        }
     }
     
     private func processRecordedAudio(at url: URL, for log: VoiceLog) {
@@ -457,9 +466,9 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
         guard let logsManager = logsManager else {
             throw VoiceError.notConfigured
         }
-        
+
         var errors: [Error] = []
-        
+
         for action in actions {
             do {
                 try executeAction(action, logsManager: logsManager)
@@ -468,18 +477,49 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 print("❌ Failed to execute action \(action.type): \(error)")
             }
         }
-        
+
         if !errors.isEmpty && errors.count == actions.count {
             throw VoiceError.allActionsFailed
         }
     }
-    
+
+    private func parseTimestamp(_ timestampString: String?) -> Date {
+        guard let timestampString = timestampString else {
+            print("⏰ No timestamp provided, using current date")
+            return Date()
+        }
+
+        print("⏰ Parsing timestamp: '\(timestampString)'")
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        if let date = formatter.date(from: timestampString) {
+            print("⏰ ✅ Successfully parsed timestamp: \(date)")
+            return date
+        }
+
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: timestampString) {
+            print("⏰ ✅ Successfully parsed timestamp (no fractional seconds): \(date)")
+            return date
+        }
+
+        print("⏰ ⚠️ Failed to parse timestamp, using current date")
+        return Date()
+    }
+
     private func executeAction(_ action: VoiceAction, logsManager: LogsManager) throws {
+        // Parse timestamp once for all action types
+        let logDate = parseTimestamp(action.details.timestamp)
+        print("⏰ Using date for log: \(logDate)")
+
         switch action.type {
         case .logWater:
             if let amountStr = action.details.amount,
                let amount = Double(amountStr) {
-                logsManager.logWater(amount: Int(amount), unit: action.details.unit ?? "oz")
+                logsManager.logWater(amount: Int(amount), unit: action.details.unit ?? "oz", date: logDate)
                 logsManager.objectWillChange.send()
             } else {
                 throw VoiceError.processingFailed("Invalid water amount")
@@ -490,7 +530,7 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 let logId = UUID()
                 let logEntry = LogEntry(
                     id: logId,
-                    date: Date(),
+                    date: logDate,
                     type: .food,
                     source: .voice,
                     notes: "Processing nutrition data...",
@@ -500,11 +540,11 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                     carbs: 0,
                     fat: 0
                 )
-                
+
                 logsManager.logEntries.append(logEntry)
                 logsManager.saveLogs()
                 logsManager.objectWillChange.send()
-                
+
                 Task {
                     await AsyncTaskManager.queueFoodMacrosFetch(foodName: foodName, logId: logId)
                 }
@@ -564,7 +604,7 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 let symptomText = symptoms.joined(separator: ", ")
                 let logEntry = LogEntry(
                     id: UUID(),
-                    date: Date(),
+                    date: logDate,
                     type: .symptom,
                     source: .voice,
                     notes: symptomText,

@@ -60,13 +60,23 @@ struct MainTabView: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: voiceLogManager.actionRecognitionState)
         }
         .overlay(alignment: .bottomTrailing) {
-            FloatingMicButton(
-                isRecording: voiceLogManager.isRecording,
-                actionState: voiceLogManager.actionRecognitionState,
-                onTap: handleVoiceTap
-            )
-            .padding(.trailing, 16)
-            .padding(.bottom, 100)
+            // Show floating button when idle OR actively recording
+            // Hide it only during analyzing/executing/completed states
+            let shouldHideButton = voiceLogManager.actionRecognitionState == .recognizing ||
+               voiceLogManager.actionRecognitionState == .executing ||
+               (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
+
+            // Show button when idle or recording, hide during processing states
+            if !shouldHideButton {
+                FloatingMicButton(
+                    isRecording: voiceLogManager.isRecording,
+                    actionState: voiceLogManager.actionRecognitionState,
+                    onTap: handleVoiceTap
+                )
+                .padding(.trailing, 16)
+                .padding(.bottom, 100)
+                .transition(.scale.combined(with: .opacity))
+            }
         }
     }
     

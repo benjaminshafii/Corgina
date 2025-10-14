@@ -38,16 +38,17 @@ class LogsManager: ObservableObject {
         }
     }
     
-    func logWater(amount: Int? = nil, unit: String? = nil, notes: String? = nil, source: LogSource = .manual) {
+    func logWater(amount: Int? = nil, unit: String? = nil, notes: String? = nil, source: LogSource = .manual, date: Date = Date()) {
         let amountText = amount != nil && unit != nil ? "\(amount!) \(unit!)" : nil
         let entry = LogEntry(
+            date: date,
             type: .water,
             source: source,
             notes: notes,
             amount: amountText
         )
         addLog(entry)
-        
+
         // Also update notification manager if from reminder
         if source == .reminder || source == .manual {
             notificationManager.logDrinking()

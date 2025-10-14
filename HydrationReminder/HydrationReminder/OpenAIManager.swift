@@ -198,11 +198,50 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
             ]
         ]
 
+        // Define JSON schema for structured output - GUARANTEES format adherence
+        let jsonSchema: [String: Any] = [
+            "name": "food_analysis_response",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "items": [
+                        "type": "array",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "name": ["type": "string"],
+                                "quantity": ["type": "string"],
+                                "estimatedCalories": ["type": "integer"],
+                                "protein": ["type": "number"],
+                                "carbs": ["type": "number"],
+                                "fat": ["type": "number"],
+                                "fiber": ["type": "number"]
+                            ],
+                            "required": ["name", "quantity", "estimatedCalories", "protein", "carbs", "fat", "fiber"],
+                            "additionalProperties": false
+                        ]
+                    ],
+                    "totalCalories": ["type": "integer"],
+                    "totalProtein": ["type": "number"],
+                    "totalCarbs": ["type": "number"],
+                    "totalFat": ["type": "number"],
+                    "totalFiber": ["type": "number"]
+                ],
+                "required": ["items", "totalCalories", "totalProtein", "totalCarbs", "totalFat", "totalFiber"],
+                "additionalProperties": false
+            ]
+        ]
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o",
+            "model": "gpt-5",  // GPT-5: Best for complex vision and agentic tasks
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 1000
+            "temperature": 0.7,
+            "max_tokens": 1200,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": jsonSchema
+            ]
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
@@ -227,41 +266,24 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         let message = content?.first?["message"] as? [String: Any]
         let text = message?["content"] as? String ?? ""
 
-        let cleanedContent = text
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        print("📸 ============================================")
+        print("📸 analyzeFood RESPONSE (STRUCTURED)")
+        print("📸 ============================================")
+        print("📸 Structured JSON response: '\(text)'")
 
+        // With structured outputs, no cleaning needed - guaranteed valid JSON!
         do {
-            let data = cleanedContent.data(using: .utf8)!
-            return try JSONDecoder().decode(FoodAnalysis.self, from: data)
-        } catch let decodingError as DecodingError {
-            print("JSON parsing error: \(decodingError)")
-            print("Content being parsed: \(cleanedContent)")
-            
-            // Try to provide a fallback response
-            if cleanedContent.contains("items") {
-                // Create a basic fallback response
-                return FoodAnalysis(
-                    items: [FoodAnalysis.FoodItem(
-                        name: "Food item",
-                        quantity: "1",
-                        estimatedCalories: nil,
-                        protein: nil,
-                        carbs: nil,
-                        fat: nil,
-                        fiber: nil
-                    )],
-                    totalCalories: nil,
-                    totalProtein: nil,
-                    totalCarbs: nil,
-                    totalFat: nil,
-                    totalFiber: nil
-                )
-            }
-            throw OpenAIError.invalidResponse
+            let data = text.data(using: .utf8)!
+            let result = try JSONDecoder().decode(FoodAnalysis.self, from: data)
+            print("📸 ✅ Successfully parsed food analysis!")
+            print("📸 Found \(result.items.count) items, Total calories: \(result.totalCalories ?? 0)")
+            print("📸 ============================================")
+            return result
         } catch {
-            print("Unexpected error: \(error)")
+            print("📸 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
+            print("📸 Error: \(error)")
+            print("📸 Raw response: \(text)")
+            print("📸 ============================================")
             throw OpenAIError.invalidResponse
         }
     }
@@ -487,15 +509,64 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         """
 
         let messages = [
-            ["role": "system", "content": "You are an AI assistant that extracts actions from voice transcripts. Always respond with valid JSON only."],
+            ["role": "system", "content": "You are an AI assistant that extracts actions from voice transcripts."],
             ["role": "user", "content": prompt]
         ]
 
+        // Define JSON schema for structured output - GUARANTEES format adherence
+        let jsonSchema: [String: Any] = [
+            "name": "voice_actions_response",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "actions": [
+                        "type": "array",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "type": ["type": "string", "enum": ["log_water", "log_food", "log_symptom", "log_vitamin", "log_puqe", "add_vitamin", "unknown"]],
+                                "confidence": ["type": "number", "minimum": 0, "maximum": 1],
+                                "details": [
+                                    "type": "object",
+                                    "properties": [
+                                        "item": ["type": "string"],
+                                        "amount": ["type": "string"],
+                                        "unit": ["type": "string"],
+                                        "calories": ["type": "string"],
+                                        "severity": ["type": "string"],
+                                        "mealType": ["type": "string"],
+                                        "symptoms": ["type": "array", "items": ["type": "string"]],
+                                        "vitaminName": ["type": "string"],
+                                        "notes": ["type": "string"],
+                                        "timestamp": ["type": "string"],
+                                        "frequency": ["type": "string"],
+                                        "dosage": ["type": "string"],
+                                        "timesPerDay": ["type": "integer"]
+                                    ],
+                                    "required": [],
+                                    "additionalProperties": false
+                                ]
+                            ],
+                            "required": ["type", "confidence", "details"],
+                            "additionalProperties": false
+                        ]
+                    ]
+                ],
+                "required": ["actions"],
+                "additionalProperties": false
+            ]
+        ]
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o",
+            "model": "gpt-5",  // GPT-5: Best for complex voice understanding
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 500
+            "temperature": 0.7,
+            "max_tokens": 600,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": jsonSchema
+            ]
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
@@ -520,17 +591,31 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         let message = content?.first?["message"] as? [String: Any]
         let text = message?["content"] as? String ?? ""
 
-        let cleanedContent = text
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🎙️ ============================================")
+        print("🎙️ extractVoiceActions RESPONSE (STRUCTURED)")
+        print("🎙️ ============================================")
+        print("🎙️ Transcript: \(transcript)")
+        print("🎙️ Structured JSON response: '\(text)'")
 
+        // With structured outputs, no cleaning needed - guaranteed valid JSON!
         do {
-            let data = cleanedContent.data(using: .utf8)!
-            return try JSONDecoder().decode([VoiceAction].self, from: data)
+            let data = text.data(using: .utf8)!
+            // Response is wrapped in {"actions": [...]}
+            struct ActionsWrapper: Codable {
+                let actions: [VoiceAction]
+            }
+            let wrapper = try JSONDecoder().decode(ActionsWrapper.self, from: data)
+            print("🎙️ ✅ Successfully parsed \(wrapper.actions.count) voice actions!")
+            for (index, action) in wrapper.actions.enumerated() {
+                print("🎙️   Action \(index + 1): \(action.type.rawValue) (confidence: \(action.confidence))")
+            }
+            print("🎙️ ============================================")
+            return wrapper.actions
         } catch {
-            print("JSON parsing error: \(error)")
-            print("No actions could be extracted from: \(cleanedContent)")
+            print("🎙️ ❌ UNEXPECTED ERROR - structured outputs should never fail!")
+            print("🎙️ Error: \(error)")
+            print("🎙️ Raw response: \(text)")
+            print("🎙️ ============================================")
             return []
         }
     }
@@ -576,27 +661,40 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         - "1 tiny apple" -> 50-60 cal (2.5" diameter)
         - "1 large apple" -> 120-130 cal (3.5" diameter)
 
-        Return nutritional info for the EXACT portion described:
-        {
-            "calories": [precise calorie count for this portion],
-            "protein": [grams],
-            "carbs": [grams],
-            "fat": [grams]
-        }
-
-        Return ONLY valid JSON. Be accurate, not conservative.
+        Provide accurate nutritional information for the EXACT portion described.
         """
 
         let messages = [
-            ["role": "system", "content": "You are a nutrition expert that provides accurate macro estimates for foods. Always respond with valid JSON only."],
+            ["role": "system", "content": "You are a nutrition expert that provides accurate macro estimates for foods."],
             ["role": "user", "content": prompt]
         ]
 
+        // Define JSON schema for structured output - GUARANTEES format adherence
+        let jsonSchema: [String: Any] = [
+            "name": "food_macros_response",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "calories": ["type": "integer", "description": "Total calories for the specified portion"],
+                    "protein": ["type": "integer", "description": "Protein in grams"],
+                    "carbs": ["type": "integer", "description": "Carbohydrates in grams"],
+                    "fat": ["type": "integer", "description": "Fat in grams"]
+                ],
+                "required": ["calories", "protein", "carbs", "fat"],
+                "additionalProperties": false
+            ]
+        ]
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o",
+            "model": "gpt-5-mini",  // GPT-5 mini: Faster, cost-efficient for well-defined tasks
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 200
+            "temperature": 0.7,
+            "max_tokens": 150,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": jsonSchema
+            ]
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
@@ -621,24 +719,36 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         let message = content?.first?["message"] as? [String: Any]
         let text = message?["content"] as? String ?? ""
 
-        let cleanedContent = text
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🍔 ============================================")
+        print("🍔 estimateFoodMacros RESPONSE (STRUCTURED)")
+        print("🍔 ============================================")
+        print("🍔 Food name: \(foodName)")
+        print("🍔 Structured JSON response: '\(text)'")
 
+        // With structured outputs, no cleaning needed - guaranteed valid JSON!
         do {
-            let data = cleanedContent.data(using: .utf8)!
+            let data = text.data(using: .utf8)!
             let result = try JSONDecoder().decode([String: Int].self, from: data)
+            print("🍔 ✅ Successfully parsed structured JSON!")
+            print("🍔 Calories: \(result["calories"]!)")
+            print("🍔 Protein: \(result["protein"]!)g")
+            print("🍔 Carbs: \(result["carbs"]!)g")
+            print("🍔 Fat: \(result["fat"]!)g")
+            print("🍔 ============================================")
+
+            // No fallbacks needed - structured outputs guarantee all fields exist
             return FoodMacros(
-                calories: result["calories"] ?? 100,
-                protein: result["protein"] ?? 5,
-                carbs: result["carbs"] ?? 10,
-                fat: result["fat"] ?? 3
+                calories: result["calories"]!,
+                protein: result["protein"]!,
+                carbs: result["carbs"]!,
+                fat: result["fat"]!
             )
         } catch {
-            print("JSON parsing error: \(error)")
-            // Return default values if parsing fails
-            return FoodMacros(calories: 100, protein: 5, carbs: 10, fat: 3)
+            print("🍔 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
+            print("🍔 Error: \(error)")
+            print("🍔 Raw response: \(text)")
+            print("🍔 ============================================")
+            throw OpenAIError.invalidResponse
         }
     }
 
@@ -660,15 +770,47 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         """
 
         let messages = [
-            ["role": "system", "content": "You are a nutrition expert specializing in pregnancy nutrition. Always respond with valid JSON only."],
+            ["role": "system", "content": "You are a nutrition expert specializing in pregnancy nutrition."],
             ["role": "user", "content": prompt]
         ]
 
+        // Define JSON schema for structured output - GUARANTEES format adherence
+        let jsonSchema: [String: Any] = [
+            "name": "food_suggestions_response",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "suggestions": [
+                        "type": "array",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "food": ["type": "string"],
+                                "reason": ["type": "string"],
+                                "nutritionalBenefit": ["type": "string"],
+                                "preparationTip": ["type": "string"],
+                                "avoidIfHigh": ["type": "boolean"]
+                            ],
+                            "required": ["food", "reason", "nutritionalBenefit", "preparationTip", "avoidIfHigh"],
+                            "additionalProperties": false
+                        ]
+                    ]
+                ],
+                "required": ["suggestions"],
+                "additionalProperties": false
+            ]
+        ]
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o",
+            "model": "gpt-5-mini",  // GPT-5 mini: Faster, cost-efficient for food suggestions
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 800
+            "temperature": 0.8,  // Higher creativity for food suggestions
+            "max_tokens": 900,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": jsonSchema
+            ]
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
@@ -693,16 +835,28 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         let message = content?.first?["message"] as? [String: Any]
         let text = message?["content"] as? String ?? ""
 
-        let cleanedContent = text
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🥗 ============================================")
+        print("🥗 generateFoodSuggestions RESPONSE (STRUCTURED)")
+        print("🥗 ============================================")
+        print("🥗 Nausea level: \(nauseaLevel)/10")
+        print("🥗 Structured JSON response: '\(text)'")
 
+        // With structured outputs, no cleaning needed - guaranteed valid JSON!
         do {
-            let data = cleanedContent.data(using: .utf8)!
-            return try JSONDecoder().decode([FoodSuggestion].self, from: data)
+            let data = text.data(using: .utf8)!
+            // Response is wrapped in {"suggestions": [...]}
+            struct SuggestionsWrapper: Codable {
+                let suggestions: [FoodSuggestion]
+            }
+            let wrapper = try JSONDecoder().decode(SuggestionsWrapper.self, from: data)
+            print("🥗 ✅ Successfully parsed \(wrapper.suggestions.count) food suggestions!")
+            print("🥗 ============================================")
+            return wrapper.suggestions
         } catch {
-            print("JSON parsing error: \(error)")
+            print("🥗 ❌ UNEXPECTED ERROR - structured outputs should never fail!")
+            print("🥗 Error: \(error)")
+            print("🥗 Raw response: \(text)")
+            print("🥗 ============================================")
             return []
         }
     }

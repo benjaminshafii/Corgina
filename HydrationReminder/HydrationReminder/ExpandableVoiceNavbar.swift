@@ -11,7 +11,8 @@ struct VoiceMiniPlayer: View {
                 recordingStateView
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if voiceLogManager.actionRecognitionState == .recognizing ||
-                      voiceLogManager.actionRecognitionState == .executing {
+                      voiceLogManager.actionRecognitionState == .executing ||
+                      voiceLogManager.isProcessingVoice {
                 processingStateView
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if voiceLogManager.actionRecognitionState == .completed &&

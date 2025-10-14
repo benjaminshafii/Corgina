@@ -148,39 +148,51 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
     
     @MainActor
     func stopRecording() {
+        print("🎤🎤🎤 ============================================")
+        print("🎤🎤🎤 STOP RECORDING CALLED")
+        print("🎤🎤🎤 ============================================")
+
         guard isRecording else {
             print("⚠️ stopRecording called but not recording")
             return
         }
 
+        print("🎤 Step 1: Calling onDeviceSpeechManager.stopLiveTranscription()")
         let result = onDeviceSpeechManager.stopLiveTranscription()
+        print("🎤 Step 2: Setting isRecording = false")
         isRecording = false
+        print("🎤 ✅ isRecording is now: \(isRecording)")
 
-        print("🎤 Recording stopped")
+        print("🎤 Step 3: Got recording result")
         print("🎤 Live transcript: '\(result.transcript)'")
         print("🎤 Recording URL: \(result.recordingURL?.path ?? "nil")")
 
         // Validate we have audio data
+        print("🎤 Step 4: Validating recording URL...")
         guard let url = result.recordingURL else {
-            print("❌ ERROR: No recording URL available")
+            print("❌❌❌ ERROR: No recording URL available - ABORTING")
             lastTranscription = "Recording failed. Please try again."
             resetToIdle()
             return
         }
+        print("🎤 ✅ Recording URL exists: \(url.path)")
 
         // Check if file exists
+        print("🎤 Step 5: Checking if file exists on disk...")
         guard FileManager.default.fileExists(atPath: url.path) else {
-            print("❌ ERROR: Recording file doesn't exist at path: \(url.path)")
+            print("❌❌❌ ERROR: Recording file doesn't exist at path: \(url.path) - ABORTING")
             lastTranscription = "Recording file not found. Please try again."
             resetToIdle()
             return
         }
+        print("🎤 ✅ File exists on disk")
 
         // Check file size
+        print("🎤 Step 6: Checking file size...")
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             let fileSize = attributes[.size] as? Int64 ?? 0
-            print("🎤 Recording file size: \(fileSize) bytes")
+            print("🎤 ✅ Recording file size: \(fileSize) bytes")
 
             if fileSize < 1000 {
                 print("⚠️ WARNING: Recording file is very small (\(fileSize) bytes)")
@@ -190,11 +202,13 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
         }
 
         // Get file duration
+        print("🎤 Step 7: Getting file duration...")
         let asset = AVURLAsset(url: url)
         let duration = CMTimeGetSeconds(asset.duration)
-        print("🎤 Recording duration: \(duration) seconds")
+        print("🎤 ✅ Recording duration: \(duration) seconds")
 
         // Create voice log with the audio file
+        print("🎤 Step 8: Creating voice log...")
         let voiceLog = VoiceLog(
             duration: duration,
             category: currentCategory,
@@ -202,67 +216,116 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
         )
         voiceLogs.append(voiceLog)
         saveLogs()
+        print("🎤 ✅ Voice log created and saved")
 
-        print("🎤 ✅ Voice log created successfully")
-        print("🎤 Starting OpenAI processing...")
+        // ⚠️ CRITICAL: Set state to recognizing IMMEDIATELY to prevent drawer from disappearing
+        // This must happen BEFORE the async processing starts
+        print("🎤🎤🎤 ============================================")
+        print("🎤🎤🎤 STEP 9: SETTING STATE TO PREVENT UI FLICKER")
+        print("🎤🎤🎤 ============================================")
+        print("🎤 BEFORE - isProcessingVoice: \(isProcessingVoice)")
+        print("🎤 BEFORE - actionRecognitionState: \(actionRecognitionState)")
+
+        isProcessingVoice = true
+        actionRecognitionState = .recognizing
+
+        print("🎤 AFTER - isProcessingVoice: \(isProcessingVoice)")
+        print("🎤 AFTER - actionRecognitionState: \(actionRecognitionState)")
+        print("🎤 ✅✅✅ State set to .recognizing - UI should stay visible!")
+
+        print("🎤🎤🎤 ============================================")
+        print("🎤🎤🎤 STEP 10: Starting OpenAI processing...")
+        print("🎤🎤🎤 ============================================")
 
         // Process with OpenAI
         processRecordedAudio(at: url, for: voiceLog)
+        print("🎤 ✅ processRecordedAudio() called (async processing started)")
     }
     
     private func processRecordedAudio(at url: URL, for log: VoiceLog) {
-        print("🔄 processRecordedAudio started")
+        print("🔄🔄🔄 ============================================")
+        print("🔄🔄🔄 processRecordedAudio STARTED")
+        print("🔄🔄🔄 URL: \(url.path)")
+        print("🔄🔄🔄 ============================================")
+
         processingTimeoutTask?.cancel()
 
+        print("🔄 Setting up 30-second timeout task...")
         processingTimeoutTask = Task {
             try? await Task.sleep(nanoseconds: 30_000_000_000)
             await MainActor.run {
                 if self.actionRecognitionState != .completed && self.actionRecognitionState != .idle {
-                    print("⚠️ Processing timeout - resetting to idle")
+                    print("⚠️⚠️⚠️ Processing timeout - resetting to idle")
                     self.resetToIdle()
                     self.lastTranscription = "Processing timed out. Please try again."
                 }
             }
         }
+        print("🔄 ✅ Timeout task created")
+
+        print("🔄🔄🔄 ============================================")
+        print("🔄🔄🔄 Creating detached Task for async processing")
+        print("🔄🔄🔄 ============================================")
 
         Task.detached(priority: .userInitiated) {
             do {
-                print("📍 Step 1: Setting state to recognizing")
+                print("🔄 🚀 ASYNC TASK STARTED")
+
+                print("📍📍📍 Step 1: Setting state to recognizing (redundant check)")
                 await MainActor.run {
+                    print("📍 MainActor - isProcessingVoice BEFORE: \(self.isProcessingVoice)")
+                    print("📍 MainActor - actionRecognitionState BEFORE: \(self.actionRecognitionState)")
                     self.isProcessingVoice = true
                     self.actionRecognitionState = .recognizing
+                    print("📍 MainActor - isProcessingVoice AFTER: \(self.isProcessingVoice)")
+                    print("📍 MainActor - actionRecognitionState AFTER: \(self.actionRecognitionState)")
                 }
+                print("📍 ✅ State confirmed as .recognizing in async task")
 
-                print("📍 Step 2: Loading audio data from file")
+                print("📍📍📍 Step 2: Loading audio data from file")
+                print("📍 File path: \(url.path)")
+                print("📍 File exists: \(FileManager.default.fileExists(atPath: url.path))")
+
                 let audioData = try Data(contentsOf: url)
-                print("✅ Audio data loaded: \(audioData.count) bytes")
+                print("✅✅✅ Audio data loaded: \(audioData.count) bytes")
 
-                print("📍 Step 3: Calling OpenAI transcription API")
+                print("📍📍📍 Step 3: Calling OpenAI transcription API")
+                print("📍 Starting API call with 15 second timeout...")
                 let transcription = try await self.withTimeout(seconds: 15) {
                     try await OpenAIManager.shared.transcribeAudio(audioData: audioData)
                 }
-                print("✅ Transcription received: '\(transcription.text)'")
+                print("✅✅✅ Transcription received: '\(transcription.text)'")
 
+                print("📍📍📍 Step 3b: Saving transcription to state")
                 await MainActor.run {
+                    print("📍 Saving lastTranscription: '\(transcription.text)'")
                     self.lastTranscription = transcription.text
                     self.refinedTranscription = transcription.text
 
                     if let index = self.voiceLogs.firstIndex(where: { $0.id == log.id }) {
+                        print("📍 Found voice log at index \(index), updating transcription")
                         self.voiceLogs[index].transcription = transcription.text
                         self.saveLogs()
+                        print("📍 Voice log saved")
+                    } else {
+                        print("⚠️ WARNING: Could not find voice log with id \(log.id)")
                     }
                 }
-                print("✅ Transcription saved to state")
+                print("✅✅✅ Transcription saved to state")
 
-                print("⏳ Waiting 1.5s before action extraction...")
+                print("⏳⏳⏳ Waiting 1.5s before action extraction...")
                 try await Task.sleep(nanoseconds: 1_500_000_000)
+                print("✅ Wait complete")
 
-                print("📍 Step 4: Extracting actions from transcription")
+                print("📍📍📍 Step 4: Extracting actions from transcription")
+                print("📍 Transcription text: '\(transcription.text)'")
+                print("📍 Starting action extraction API call with 15 second timeout...")
                 let actions = try await self.withTimeout(seconds: 15) {
                     try await OpenAIManager.shared.extractVoiceActions(from: transcription.text)
                 }
-                print("✅ Actions extracted: \(actions.count) actions")
+                print("✅✅✅ Actions extracted: \(actions.count) actions")
 
+                print("📍📍📍 Step 4b: Saving detected actions to state")
                 await MainActor.run {
                     print("📱 Detected \(actions.count) actions from voice:")
                     for (index, action) in actions.enumerated() {
@@ -271,62 +334,82 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
 
                     self.detectedActions = actions
                     self.showActionConfirmation = !actions.isEmpty
+                    print("📍 Setting isProcessingVoice = false")
                     self.isProcessingVoice = false
+                    print("📍 Setting actionRecognitionState = .executing")
                     self.actionRecognitionState = .executing
+                    print("📍 State change complete")
                 }
-                print("✅ State set to executing")
+                print("✅✅✅ State set to .executing")
 
-                print("⏳ Waiting 2s before execution...")
+                print("⏳⏳⏳ Waiting 2s before execution...")
                 try await Task.sleep(nanoseconds: 2_000_000_000)
+                print("✅ Wait complete")
 
-                print("📍 Step 5: Executing actions")
+                print("📍📍📍 Step 5: Executing actions")
                 await MainActor.run {
                     if !actions.isEmpty {
-                        print("📱 Auto-executing \(actions.count) actions")
+                        print("📱📱📱 Auto-executing \(actions.count) actions")
                         do {
                             try self.executeVoiceActionsWithErrorHandling(actions)
-                            print("✅ All actions executed successfully")
+                            print("✅✅✅ All actions executed successfully")
                             self.executedActions = actions
+                            print("📍 Setting actionRecognitionState = .completed")
                             self.actionRecognitionState = .completed
-                            print("✅ State set to completed")
+                            print("✅✅✅ State set to .completed")
                         } catch {
-                            print("❌ Action execution failed: \(error)")
+                            print("❌❌❌ Action execution failed: \(error)")
                             self.lastTranscription = "Failed to log entries. Please try again."
                             self.actionRecognitionState = .idle
                         }
                     } else {
-                        print("⚠️ No actions to execute")
+                        print("⚠️⚠️⚠️ No actions to execute")
                         self.lastTranscription = "No actions detected in your speech. Please try again."
                         self.actionRecognitionState = .completed
                     }
                 }
 
                 // Show success state for 4 seconds before auto-dismissing
-                print("⏳ Showing success state for 4 seconds...")
+                print("⏳⏳⏳ Showing success state for 4 seconds...")
                 try await Task.sleep(nanoseconds: 4_000_000_000)
+                print("✅ Wait complete")
 
+                print("🔄🔄🔄 Auto-dismissing and resetting to idle")
                 await MainActor.run {
-                    print("🔄 Auto-dismissing and resetting to idle")
+                    print("🔄 Calling resetToIdle()")
                     self.resetToIdle()
+                    print("🔄 Reset complete")
                 }
 
                 self.processingTimeoutTask?.cancel()
-                print("✅ Processing complete")
+                print("✅✅✅ PROCESSING COMPLETE - FULL SUCCESS!")
+                print("✅✅✅ ============================================")
 
             } catch {
+                print("❌❌❌ ============================================")
+                print("❌❌❌ PROCESSING FAILED - CAUGHT ERROR")
+                print("❌❌❌ ============================================")
                 await MainActor.run {
-                    print("❌ ❌ ❌ PROCESSING FAILED ❌ ❌ ❌")
                     print("❌ Error type: \(type(of: error))")
                     print("❌ Error description: \(error.localizedDescription)")
                     print("❌ Error: \(error)")
-
+                    print("❌ Setting lastTranscription to error message")
                     self.lastTranscription = "Error: \(error.localizedDescription)"
+                    print("❌ Setting isProcessingVoice = false")
                     self.isProcessingVoice = false
+                    print("❌ Calling resetToIdle()")
                     self.resetToIdle()
+                    print("❌ Reset complete")
                 }
                 self.processingTimeoutTask?.cancel()
+                print("❌❌❌ ERROR HANDLER COMPLETE")
+                print("❌❌❌ ============================================")
             }
         }
+        print("🔄 ✅ Task.detached block created and scheduled")
+        print("🔄🔄🔄 ============================================")
+        print("🔄🔄🔄 processRecordedAudio FINISHED (task queued)")
+        print("🔄🔄🔄 ============================================")
     }
     
     private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
@@ -349,11 +432,25 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
     }
     
     private func resetToIdle() {
+        print("🔄🔄🔄 ============================================")
+        print("🔄🔄🔄 resetToIdle() CALLED")
+        print("🔄🔄🔄 ============================================")
+        print("🔄 BEFORE - actionRecognitionState: \(actionRecognitionState)")
+        print("🔄 BEFORE - isProcessingVoice: \(isProcessingVoice)")
+        print("🔄 BEFORE - executedActions.count: \(executedActions.count)")
+
         actionRecognitionState = .idle
         executedActions = []
         refinedTranscription = nil
         lastTranscription = nil
         isProcessingVoice = false
+
+        print("🔄 AFTER - actionRecognitionState: \(actionRecognitionState)")
+        print("🔄 AFTER - isProcessingVoice: \(isProcessingVoice)")
+        print("🔄 AFTER - executedActions.count: \(executedActions.count)")
+        print("🔄🔄🔄 ============================================")
+        print("🔄🔄🔄 resetToIdle() COMPLETE")
+        print("🔄🔄🔄 ============================================")
     }
     
     private func executeVoiceActionsWithErrorHandling(_ actions: [VoiceAction]) throws {

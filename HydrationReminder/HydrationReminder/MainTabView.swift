@@ -38,10 +38,20 @@ struct MainTabView: View {
                 Spacer()
                     .allowsHitTesting(false)
 
-                if voiceLogManager.isRecording ||
+                let shouldShowDrawer = voiceLogManager.isRecording ||
                    voiceLogManager.actionRecognitionState == .recognizing ||
                    voiceLogManager.actionRecognitionState == .executing ||
-                   (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty) {
+                   voiceLogManager.isProcessingVoice ||
+                   (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty)
+
+                let _ = print("🎨 UI DRAWER EVALUATION:")
+                let _ = print("🎨 isRecording: \(voiceLogManager.isRecording)")
+                let _ = print("🎨 actionRecognitionState: \(voiceLogManager.actionRecognitionState)")
+                let _ = print("🎨 isProcessingVoice: \(voiceLogManager.isProcessingVoice)")
+                let _ = print("🎨 executedActions.count: \(voiceLogManager.executedActions.count)")
+                let _ = print("🎨 shouldShowDrawer: \(shouldShowDrawer)")
+
+                if shouldShowDrawer {
                     voiceFlowDrawer
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -90,7 +100,14 @@ struct MainTabView: View {
 
 
     private func handleVoiceTap() {
+        print("🎯🎯🎯 ============================================")
+        print("🎯🎯🎯 handleVoiceTap() CALLED")
+        print("🎯🎯🎯 ============================================")
+        print("🎯 Current state - isRecording: \(voiceLogManager.isRecording)")
+        print("🎯 Current state - actionRecognitionState: \(voiceLogManager.actionRecognitionState)")
+
         if !openAIManager.hasAPIKey {
+            print("🎯 ❌ No API key - showing error banner")
             withAnimation(.spring(response: 0.3)) {
                 showAPIKeyError = true
             }
@@ -103,13 +120,21 @@ struct MainTabView: View {
         }
 
         if voiceLogManager.isRecording {
+            print("🎯 Currently recording - calling stopRecording()")
             voiceLogManager.stopRecording()
+            print("🎯 stopRecording() returned")
         } else {
+            print("🎯 Not recording - calling startRecording()")
             voiceLogManager.startRecording()
+            print("🎯 startRecording() returned")
         }
 
         let impactFeedback = UIImpactFeedbackGenerator(style: voiceLogManager.isRecording ? .medium : .light)
         impactFeedback.impactOccurred()
+        print("🎯 Haptic feedback triggered")
+        print("🎯🎯🎯 ============================================")
+        print("🎯🎯🎯 handleVoiceTap() COMPLETE")
+        print("🎯🎯🎯 ============================================")
     }
     
     private func getActionSummary(_ action: VoiceAction) -> String {

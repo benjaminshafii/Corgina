@@ -166,9 +166,6 @@ struct DashboardView: View {
     
     var body: some View {
         mainNavigationView
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                voiceMiniPlayerView
-            }
             .sheet(isPresented: $showingCamera) {
                 cameraSheetView
             }
@@ -300,22 +297,6 @@ struct DashboardView: View {
                 }
                 .zIndex(2)
             }
-        }
-    }
-    
-    @ViewBuilder
-    private var voiceMiniPlayerView: some View {
-        if voiceLogManager.isRecording ||
-           voiceLogManager.actionRecognitionState == .recognizing ||
-           voiceLogManager.actionRecognitionState == .executing ||
-           (voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty) {
-            VoiceMiniPlayer(
-                voiceLogManager: voiceLogManager,
-                onDismiss: {
-                    voiceLogManager.clearExecutedActions()
-                }
-            )
-            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
     

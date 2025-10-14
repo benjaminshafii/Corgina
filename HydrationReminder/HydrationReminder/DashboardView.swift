@@ -1058,6 +1058,8 @@ struct ActionSuccessCard: View {
             return "drop.fill"
         case .logVitamin:
             return "pills.fill"
+        case .addVitamin:
+            return "plus.circle.fill"
         case .logSymptom:
             return "heart.text.square"
         case .logPUQE:
@@ -1075,6 +1077,8 @@ struct ActionSuccessCard: View {
             return .blue
         case .logVitamin:
             return .green
+        case .addVitamin:
+            return .mint
         case .logSymptom:
             return .purple
         case .logPUQE:
@@ -1095,6 +1099,8 @@ struct ActionSuccessCard: View {
             return "Water"
         case .logVitamin:
             return action.details.vitaminName ?? action.details.item ?? "Supplement"
+        case .addVitamin:
+            return action.details.vitaminName ?? "New Supplement"
         case .logSymptom:
             return "Symptoms"
         case .logPUQE:

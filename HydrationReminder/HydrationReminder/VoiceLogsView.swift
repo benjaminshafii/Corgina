@@ -237,7 +237,7 @@ struct VoiceLogsView: View {
     
     private func getActionSummary(_ action: VoiceAction) -> String {
         var summary = ""
-        
+
         switch action.type {
         case .logFood:
             summary = "Added \(action.details.item ?? "food")"
@@ -252,6 +252,8 @@ struct VoiceLogsView: View {
             }
         case .logVitamin:
             summary = "Took \(action.details.vitaminName ?? action.details.item ?? "supplement")"
+        case .addVitamin:
+            summary = "Added \(action.details.vitaminName ?? "supplement") to tracker"
         case .logSymptom:
             if let symptoms = action.details.symptoms {
                 summary = "Logged: \(symptoms.joined(separator: ", "))"

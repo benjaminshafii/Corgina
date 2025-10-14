@@ -345,6 +345,7 @@ struct VoiceCommandSheet: View {
         case .logWater: return "drop.fill"
         case .logFood: return "fork.knife"
         case .logVitamin: return "pills.fill"
+        case .addVitamin: return "plus.circle.fill"
         case .logSymptom: return "heart.text.square"
         case .logPUQE: return "chart.line.uptrend.xyaxis"
         case .unknown: return "questionmark.circle"
@@ -356,6 +357,7 @@ struct VoiceCommandSheet: View {
         case .logWater: return .blue
         case .logFood: return .orange
         case .logVitamin: return .purple
+        case .addVitamin: return .mint
         case .logSymptom: return .red
         case .logPUQE: return .pink
         case .unknown: return .gray
@@ -373,6 +375,8 @@ struct VoiceCommandSheet: View {
             return "Log food: \(action.details.item ?? "meal")"
         case .logVitamin:
             return "Log vitamin: \(action.details.vitaminName ?? "supplement")"
+        case .addVitamin:
+            return "Add supplement: \(action.details.vitaminName ?? "vitamin")"
         case .logSymptom:
             if let symptoms = action.details.symptoms {
                 return "Log symptoms: \(symptoms.joined(separator: ", "))"

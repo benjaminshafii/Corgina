@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "mcp__exa__web_search_exa"
+      "mcp__exa__web_search_exa",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git restore:*)",
+      "Bash(xcodebuild:*)"
     ],
     "deny": [],
     "ask": []

@@ -437,9 +437,15 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
            - "at 2pm yesterday" -> yesterday at that time
            
         3. For log_food:
-           - Put food name in "item" field
+           - Put FULL food description including quantity/portion in "item" field
+             Examples: "one tiny walnut", "2 slices of pizza", "large bowl of pasta", "small apple"
+           - Extract quantity descriptor words (tiny, small, medium, large, huge, handful, etc.)
+           - Include the quantity number if mentioned ("1 walnut", "2 eggs", "half an avocado")
            - If meal type mentioned or implied, add "mealType": "breakfast/lunch/dinner/snack"
            - Parse meal times even if just food is mentioned with meal context
+
+           BAD: "item": "walnut" (missing quantity!)
+           GOOD: "item": "one tiny walnut" (includes quantity and size)
 
         4. For log_vitamin: put vitamin/supplement name in "vitaminName" field (logs taking existing vitamin)
         5. For log_water: put amount and unit in details
@@ -454,23 +460,30 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
 
         Transcript: "\(transcript)"
 
-        Example responses (note ALL have timestamps):
-        - "I ate a potato for breakfast": 
-          [{"type": "log_food", "details": {"item": "potato", "mealType": "breakfast", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
-        
-        - "I had a banana for supper":
-          [{"type": "log_food", "details": {"item": "banana", "mealType": "dinner", "timestamp": "\(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+        Example responses (note ALL have timestamps and FULL food descriptions):
+        - "I ate a potato for breakfast":
+          [{"type": "log_food", "details": {"item": "1 medium potato", "mealType": "breakfast", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+
+        - "I had a small banana for supper":
+          [{"type": "log_food", "details": {"item": "1 small banana", "mealType": "dinner", "timestamp": "\(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+
+        - "I ate one tiny walnut":
+          [{"type": "log_food", "details": {"item": "one tiny walnut", "timestamp": "\(currentTimestamp)"}, "confidence": 0.95}]
+
+        - "I had 2 slices of pizza and a large coke":
+          [{"type": "log_food", "details": {"item": "2 slices of pizza", "timestamp": "\(currentTimestamp)"}, "confidence": 0.95}, {"type": "log_food", "details": {"item": "1 large coke", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
         
         - "I drank water 2 hours ago":
           [{"type": "log_water", "details": {"amount": "some", "unit": "water", "timestamp": "\(currentDate.addingTimeInterval(-7200).ISO8601Format())"}, "confidence": 0.85}]
         
         - "I took my vitamins this morning":
           [{"type": "log_vitamin", "details": {"vitaminName": "vitamins", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.95}]
-        
-        - "I ate pizza" (no time specified):
-          [{"type": "log_food", "details": {"item": "pizza", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
-        
+
+        - "I ate pasta" (no quantity specified, infer reasonable portion):
+          [{"type": "log_food", "details": {"item": "1 bowl of pasta", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
+
         Return ONLY valid JSON array. Every action MUST have a timestamp field.
+        IMPORTANT: Food items MUST include quantity/portion information!
         """
 
         let messages = [
@@ -535,30 +548,43 @@ Example: A restaurant burger with fries should be 800-1200 calories, not 400.
         }
 
         let prompt = """
-        Estimate nutritional macros for: \(foodName)
+        Estimate nutritional macros for: "\(foodName)"
 
-        IMPORTANT GUIDELINES:
-        - Be REALISTIC - don't underestimate calories
-        - If quantity is mentioned (e.g., "2 apples", "large pizza"), account for it
-        - For restaurant/prepared foods, assume typical restaurant portions (usually larger)
-        - Include cooking oils, butter, dressings in estimates
-        - Consider preparation method if mentioned (fried = more calories)
+        CRITICAL INSTRUCTIONS:
+        - Pay CLOSE ATTENTION to quantity descriptors (tiny, small, medium, large, handful, etc.)
+        - Pay CLOSE ATTENTION to count numbers (1, 2, half, quarter, etc.)
+        - Use USDA/accurate nutritional data
+        - Be PRECISE with portions - "one tiny walnut" ≠ "walnut" ≠ "handful of walnuts"
 
-        For a typical serving/portion mentioned:
+        PORTION SIZE GUIDE:
+        - "tiny" or "small" = 50-70% of standard serving
+        - "medium" or no descriptor = 100% standard serving
+        - "large" or "big" = 150-200% of standard serving
+        - "1" or "one" of something = exactly one unit
+        - "2" or "two" = exactly two units
+        - "handful" = ~1oz or ~28g
+        - "bowl" = ~1.5-2 cups
+        - "plate" = ~2-3 cups
+
+        EXAMPLES (showing precision):
+        - "one tiny walnut" -> 13-18 cal (1 walnut half)
+        - "1 medium walnut" -> 26-35 cal (1 whole walnut)
+        - "handful of walnuts" -> 180-190 cal (~14 walnut halves)
+        - "1 bowl of pasta" -> 350-400 cal (cooked, with sauce assumed)
+        - "pasta" or "1 serving pasta" -> 200-220 cal (dry weight equivalent)
+        - "2 slices of pizza" -> 550-600 cal (restaurant style)
+        - "1 tiny apple" -> 50-60 cal (2.5" diameter)
+        - "1 large apple" -> 120-130 cal (3.5" diameter)
+
+        Return nutritional info for the EXACT portion described:
         {
-            "calories": [realistic calorie count],
+            "calories": [precise calorie count for this portion],
             "protein": [grams],
             "carbs": [grams],
             "fat": [grams]
         }
 
-        Examples:
-        - "avocado toast" -> 350-400 cal (bread + avocado + oil)
-        - "chicken breast" -> 200-250 cal for 6oz cooked
-        - "2 eggs" -> 180 cal (includes cooking oil)
-        - "restaurant burger" -> 700-900 cal (includes bun, cheese, sauce)
-
-        Return ONLY valid JSON.
+        Return ONLY valid JSON. Be accurate, not conservative.
         """
 
         let messages = [

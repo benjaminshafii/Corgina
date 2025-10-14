@@ -25,7 +25,7 @@ class OnDeviceSpeechManager: NSObject, ObservableObject, @unchecked Sendable {
     private func setupAudioEngine() {
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("❌ Audio session setup failed: \(error)")

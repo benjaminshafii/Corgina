@@ -386,6 +386,7 @@ struct ActionSuccessNavbarCard: View {
         case .logFood: return "fork.knife"
         case .logWater: return "drop.fill"
         case .logVitamin: return "pills.fill"
+        case .addVitamin: return "plus.circle.fill"
         case .logSymptom: return "heart.text.square"
         case .logPUQE: return "chart.line.uptrend.xyaxis"
         case .unknown: return "questionmark.circle"
@@ -397,6 +398,7 @@ struct ActionSuccessNavbarCard: View {
         case .logFood: return .orange
         case .logWater: return .blue
         case .logVitamin: return .green
+        case .addVitamin: return .mint
         case .logSymptom: return .purple
         case .logPUQE: return .pink
         case .unknown: return .gray
@@ -412,6 +414,7 @@ struct ActionSuccessNavbarCard: View {
             }
             return "Water"
         case .logVitamin: return action.details.vitaminName ?? action.details.item ?? "Vitamin"
+        case .addVitamin: return action.details.vitaminName ?? "New Supplement"
         case .logSymptom: return "Symptom"
         case .logPUQE: return "PUQE"
         case .unknown: return "Unknown"
@@ -429,6 +432,11 @@ struct ActionSuccessNavbarCard: View {
             return "Water logged"
         case .logVitamin:
             return "Supplement taken"
+        case .addVitamin:
+            if let frequency = action.details.frequency {
+                return "Added - \(frequency.capitalized)"
+            }
+            return "Added to tracker"
         case .logSymptom:
             if let symptoms = action.details.symptoms {
                 return symptoms.joined(separator: ", ")

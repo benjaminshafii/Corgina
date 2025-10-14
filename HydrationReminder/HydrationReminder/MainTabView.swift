@@ -139,7 +139,7 @@ struct MainTabView: View {
     
     private func getActionSummary(_ action: VoiceAction) -> String {
         var summary = ""
-        
+
         switch action.type {
         case .logFood:
             summary = "Added \(action.details.item ?? "food")"
@@ -154,6 +154,8 @@ struct MainTabView: View {
             }
         case .logVitamin:
             summary = "Took \(action.details.vitaminName ?? action.details.item ?? "supplement")"
+        case .addVitamin:
+            summary = "Added \(action.details.vitaminName ?? "supplement") to tracker"
         case .logSymptom:
             if let symptoms = action.details.symptoms {
                 summary = "Logged: \(symptoms.joined(separator: ", "))"
@@ -165,7 +167,7 @@ struct MainTabView: View {
         case .unknown:
             summary = "Unknown action"
         }
-        
+
         return summary
     }
     

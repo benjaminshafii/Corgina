@@ -333,12 +333,24 @@ struct SupplementDetailView: View {
     @State var supplement: Supplement
     @ObservedObject var supplementManager: SupplementManager
     @Environment(\.dismiss) var dismiss
+    @State private var isEditing = false
+    @State private var editedName: String = ""
+    @State private var editedDosage: String = ""
+    @State private var editedFrequency: Supplement.SupplementFrequency = .daily
+    @State private var editedReminderTime: Date = Date()
+    @State private var editedNotes: String = ""
+    @State private var editedIsEssential: Bool = false
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    supplementInfoCard
+                    if isEditing {
+                        editingCard
+                    } else {
+                        supplementInfoCard
+                    }
+                    
                     complianceCard
                     intakeHistoryCard
                     
@@ -351,8 +363,96 @@ struct SupplementDetailView: View {
                 .padding(.vertical)
             }
             .navigationTitle(supplement.name)
-            .navigationBarItems(trailing: Button("Done") { dismiss() })
+            .navigationBarItems(
+                leading: isEditing ? Button("Cancel") { 
+                    isEditing = false
+                    resetEditFields()
+                } : nil,
+                trailing: Button(isEditing ? "Save" : "Edit") { 
+                    if isEditing {
+                        saveChanges()
+                    } else {
+                        startEditing()
+                    }
+                }
+            )
         }
+        .onAppear {
+            resetEditFields()
+        }
+    }
+    
+    private var editingCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("Edit Details", systemImage: "pencil.circle.fill")
+                .font(.headline)
+                .foregroundColor(.blue)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                // Name
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Name")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Supplement name", text: $editedName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                
+                // Dosage
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dosage")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("e.g., 500mg", text: $editedDosage)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                
+                // Frequency
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Frequency")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Picker("Frequency", selection: $editedFrequency) {
+                        ForEach(Supplement.SupplementFrequency.allCases, id: \.self) { freq in
+                            Text(freq.rawValue).tag(freq)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                }
+                
+                // Reminder Time
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Reminder Time")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    DatePicker("", selection: $editedReminderTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+                
+                // Essential Toggle
+                Toggle(isOn: $editedIsEssential) {
+                    HStack {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                        Text("Essential Supplement")
+                    }
+                }
+                
+                // Notes
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notes (optional)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    TextField("Additional notes", text: $editedNotes, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .lineLimit(2...4)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+        .padding(.horizontal)
     }
     
     private var supplementInfoCard: some View {
@@ -484,22 +584,55 @@ struct SupplementDetailView: View {
     }
     
     private func detailRow(label: String, value: String) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             Text(label)
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundColor(.secondary)
-            Spacer()
+                .frame(width: 80, alignment: .leading)
+            
             Text(value)
                 .font(.subheadline)
-                .fontWeight(.medium)
         }
     }
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.dateStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func startEditing() {
+        isEditing = true
+        resetEditFields()
+    }
+    
+    private func resetEditFields() {
+        editedName = supplement.name
+        editedDosage = supplement.dosage
+        editedFrequency = supplement.frequency
+        editedReminderTime = supplement.reminderTimes.first ?? Date()
+        editedNotes = supplement.notes ?? ""
+        editedIsEssential = supplement.isEssential
+    }
+    
+    private func saveChanges() {
+        // Update the supplement
+        supplement.name = editedName
+        supplement.dosage = editedDosage
+        supplement.frequency = editedFrequency
+        supplement.reminderTimes = [editedReminderTime]
+        supplement.notes = editedNotes.isEmpty ? nil : editedNotes
+        supplement.isEssential = editedIsEssential
+        
+        // Update in manager
+        supplementManager.updateSupplement(supplement)
+        
+        // Update reminder if time changed
+        if !supplement.reminderTimes.isEmpty {
+            supplementManager.scheduleReminder(for: supplement)
+        }
+        
+        isEditing = false
     }
 }
 

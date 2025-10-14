@@ -109,6 +109,27 @@ class NotificationManager: ObservableObject {
         startTimer()
         setupNotificationCategories()
         checkAndResetDailyBadge()
+        
+        verifyAndSyncBadgeCount()
+    }
+    
+    func verifyAndSyncBadgeCount() {
+        UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
+            let deliveredCount = notifications.filter { notification in
+                let type = notification.request.content.userInfo["type"] as? String
+                return type == "eating" || type == "drinking"
+            }.count
+            
+            DispatchQueue.main.async {
+                if deliveredCount != self.currentBadgeCount {
+                    print("🔔 Badge count mismatch: stored=\(self.currentBadgeCount), actual=\(deliveredCount)")
+                    print("🔔 Syncing badge count to match delivered notifications")
+                    self.currentBadgeCount = deliveredCount
+                }
+                
+                UNUserNotificationCenter.current().setBadgeCount(self.currentBadgeCount)
+            }
+        }
     }
     
     func startTimer() {
@@ -271,11 +292,24 @@ class NotificationManager: ObservableObject {
             print("Skipping eating notification - time is in the past")
             return
         }
+        
+        checkPermission { status in
+            guard status == .authorized || status == .provisional else {
+                print("⚠️ Notifications not authorized - cannot schedule")
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("NotificationPermissionDenied"),
+                        object: nil
+                    )
+                }
+                return
+            }
+            
             let content = UNMutableNotificationContent()
             content.title = "Time to Eat! 🍽️"
-            content.body = "It's been \(formatHours(eatingInterval)). Time for a healthy meal! Tap to log your meal."
+            content.body = "It's been \(self.formatHours(self.eatingInterval)). Time for a healthy meal! Tap to log your meal."
             content.sound = .default
-            content.badge = NSNumber(value: currentBadgeCount + 1)
+            content.badge = NSNumber(value: self.currentBadgeCount + 1)
             content.categoryIdentifier = "EATING_REMINDER"
             content.userInfo = ["type": "eating"]
             
@@ -291,7 +325,7 @@ class NotificationManager: ObservableObject {
             }
             
             // Check if we already scheduled for this exact time
-            if let lastScheduled = lastScheduledEatingTime,
+            if let lastScheduled = self.lastScheduledEatingTime,
                abs(lastScheduled.timeIntervalSince(nextTime)) < 60 {
                 print("Eating notification already scheduled for \(nextTime), skipping duplicate")
                 return
@@ -302,12 +336,33 @@ class NotificationManager: ObservableObject {
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("Error scheduling eating notification: \(error)")
+                    print("❌ Error scheduling eating notification: \(error)")
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("NotificationScheduleError"),
+                            object: nil,
+                            userInfo: ["error": error.localizedDescription, "type": "eating"]
+                        )
+                    }
                 } else {
-                    print("Eating notification scheduled for \(nextTime)")
+                    print("✅ Eating notification scheduled for \(nextTime)")
                     self.lastScheduledEatingTime = nextTime
+                    
+                    self.verifyNotificationScheduled(identifier: "eating_reminder")
                 }
             }
+        }
+    }
+    
+    private func verifyNotificationScheduled(identifier: String) {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let found = requests.contains { $0.identifier == identifier }
+            if found {
+                print("✅ Verified notification '\(identifier)' is scheduled")
+            } else {
+                print("⚠️ Notification '\(identifier)' not found in pending requests")
+            }
+        }
     }
     
     func scheduleNextDrinkingNotification() {
@@ -322,11 +377,17 @@ class NotificationManager: ObservableObject {
             return
         }
         
-        let content = UNMutableNotificationContent()
+        checkPermission { status in
+            guard status == .authorized || status == .provisional else {
+                print("⚠️ Notifications not authorized - cannot schedule")
+                return
+            }
+            
+            let content = UNMutableNotificationContent()
             content.title = "Hydration Time! 💧"
-            content.body = "It's been \(formatHours(drinkingInterval)). Time to drink some water! Tap to log your drink."
+            content.body = "It's been \(self.formatHours(self.drinkingInterval)). Time to drink some water! Tap to log your drink."
             content.sound = .default
-            content.badge = NSNumber(value: currentBadgeCount + 1)
+            content.badge = NSNumber(value: self.currentBadgeCount + 1)
             content.categoryIdentifier = "DRINKING_REMINDER"
             content.userInfo = ["type": "drinking"]
             
@@ -342,7 +403,7 @@ class NotificationManager: ObservableObject {
             }
             
             // Check if we already scheduled for this exact time
-            if let lastScheduled = lastScheduledDrinkingTime,
+            if let lastScheduled = self.lastScheduledDrinkingTime,
                abs(lastScheduled.timeIntervalSince(nextTime)) < 60 {
                 print("Drinking notification already scheduled for \(nextTime), skipping duplicate")
                 return
@@ -353,12 +414,22 @@ class NotificationManager: ObservableObject {
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("Error scheduling drinking notification: \(error)")
+                    print("❌ Error scheduling drinking notification: \(error)")
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("NotificationScheduleError"),
+                            object: nil,
+                            userInfo: ["error": error.localizedDescription, "type": "drinking"]
+                        )
+                    }
                 } else {
-                    print("Drinking notification scheduled for \(nextTime)")
+                    print("✅ Drinking notification scheduled for \(nextTime)")
                     self.lastScheduledDrinkingTime = nextTime
+                    
+                    self.verifyNotificationScheduled(identifier: "drinking_reminder")
                 }
             }
+        }
     }
     
     func rescheduleAllNotifications() {
@@ -562,7 +633,13 @@ class NotificationManager: ObservableObject {
     }
     
     func updateBadgeCount() {
-        currentBadgeCount = pendingEatingCount + pendingDrinkingCount
+        let newCount = pendingEatingCount + pendingDrinkingCount
+        
+        if newCount != currentBadgeCount {
+            print("🔔 Updating badge count: \(currentBadgeCount) -> \(newCount)")
+            currentBadgeCount = newCount
+            UNUserNotificationCenter.current().setBadgeCount(currentBadgeCount)
+        }
     }
     
     func incrementEatingBadge() {
@@ -576,9 +653,13 @@ class NotificationManager: ObservableObject {
     }
     
     func clearBadge() {
+        print("🔔 Clearing all badge counts")
         pendingEatingCount = 0
         pendingDrinkingCount = 0
         currentBadgeCount = 0
+        UNUserNotificationCenter.current().setBadgeCount(0)
+        
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
     
     private func setupNotificationCategories() {

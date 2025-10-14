@@ -35,11 +35,12 @@ enum LogCategory: String, Codable, CaseIterable {
 
 struct VoiceLog: Identifiable, Codable {
     let id: UUID
-    let date: Date
+    var date: Date
     let duration: TimeInterval
     let category: LogCategory
     let fileName: String
     var transcription: String?
+    var liveTranscription: String?
     var tags: [String]
     
     init(id: UUID = UUID(), date: Date = Date(), duration: TimeInterval, category: LogCategory, fileName: String) {
@@ -49,6 +50,7 @@ struct VoiceLog: Identifiable, Codable {
         self.category = category
         self.fileName = fileName
         self.transcription = nil
+        self.liveTranscription = nil
         self.tags = []
     }
     

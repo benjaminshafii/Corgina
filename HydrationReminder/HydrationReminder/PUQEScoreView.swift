@@ -8,32 +8,76 @@ struct PUQEScoreView: View {
     @State private var retchingEpisodes = 0
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    todaysScoreCard
-                    
-                    Button(action: { showingScoreForm = true }) {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                LinearGradient(
+                    colors: [
+                        Color.orange.opacity(0.1),
+                        Color(.systemGroupedBackground)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .center
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        todaysScoreCard
+                        
+                        Button(action: { showingScoreForm = true }) {
                         Label("Record Today's PUQE Score", systemImage: "plus.circle.fill")
+                            .font(.headline)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, 24)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.blue)
                     .padding(.horizontal)
                     
                     if let trend = puqeManager.getTrend() {
                         trendCard(trend: trend)
                     }
                     
-                    if !puqeManager.scores.isEmpty {
-                        recentScoresSection
+                        if !puqeManager.scores.isEmpty {
+                            recentScoresSection
+                        }
                     }
                 }
-                .padding(.vertical)
             }
             .navigationTitle("PUQE Score")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 2) {
+                        Text("PUQE Score")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        Text("Nausea Tracking")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        // Show trend details
+                    } label: {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        // Show PUQE info
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                }
+            }
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingScoreForm) {
                 PUQEScoreFormView(
                     nauseaHours: $nauseaHours,
@@ -83,10 +127,14 @@ struct PUQEScoreView: View {
                     .padding(.vertical)
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 2)
+        .padding(20)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(.regularMaterial.opacity(0.5), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
         .padding(.horizontal)
     }
     
@@ -109,9 +157,10 @@ struct PUQEScoreView: View {
             
             Spacer()
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         .padding(.horizontal)
     }
     
@@ -138,9 +187,9 @@ struct PUQEScoreView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(score.severity.color)
                 }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(8)
+                .padding(16)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
             }
         }

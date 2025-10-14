@@ -6,6 +6,7 @@ enum LogType: String, Codable, CaseIterable {
     case drink = "Drink"
     case puke = "Puke"
     case symptom = "Symptom"
+    case supplement = "Supplement"
     
     var icon: String {
         switch self {
@@ -17,6 +18,8 @@ enum LogType: String, Codable, CaseIterable {
             return "exclamationmark.triangle.fill"
         case .symptom:
             return "heart.text.square"
+        case .supplement:
+            return "pills.fill"
         }
     }
     
@@ -30,6 +33,8 @@ enum LogType: String, Codable, CaseIterable {
             return "red"
         case .symptom:
             return "purple"
+        case .supplement:
+            return "green"
         }
     }
 }
@@ -43,7 +48,7 @@ enum LogSource: String, Codable {
 
 struct LogEntry: Identifiable, Codable {
     let id: UUID
-    let date: Date
+    var date: Date
     let type: LogType
     let source: LogSource
     var notes: String?
@@ -59,6 +64,9 @@ struct LogEntry: Identifiable, Codable {
     var carbs: Int?
     var fat: Int?
     
+    // Supplement info
+    var supplementName: String?
+    
     init(
         id: UUID = UUID(),
         date: Date = Date(),
@@ -73,7 +81,8 @@ struct LogEntry: Identifiable, Codable {
         calories: Int? = nil,
         protein: Int? = nil,
         carbs: Int? = nil,
-        fat: Int? = nil
+        fat: Int? = nil,
+        supplementName: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -89,6 +98,7 @@ struct LogEntry: Identifiable, Codable {
         self.protein = protein
         self.carbs = carbs
         self.fat = fat
+        self.supplementName = supplementName
     }
     
     var formattedDate: String {

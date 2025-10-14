@@ -145,7 +145,8 @@ struct LogLedgerView: View {
                                 ForEach(section.logs) { log in
                                     LogEntryRow(
                                         entry: log,
-                                        relatedLogs: logsManager.getRelatedLogs(for: log)
+                                        relatedLogs: logsManager.getRelatedLogs(for: log),
+                                        logsManager: logsManager
                                     )
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {

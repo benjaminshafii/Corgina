@@ -63,7 +63,7 @@ struct PhotoFoodLogView: View {
                     PhotoDetailView(logId: log.id, manager: photoLogManager)
                 }
             }
-            .onChange(of: selectedItem) { newItem in
+            .onChange(of: selectedItem) { oldValue, newItem in
                 Task {
                     if let data = try? await newItem?.loadTransferable(type: Data.self) {
                         tempImageData = data

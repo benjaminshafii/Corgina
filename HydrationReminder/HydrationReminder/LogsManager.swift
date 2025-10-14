@@ -6,7 +6,10 @@ class LogsManager: ObservableObject {
     @Published var todaysSummary: DailySummary?
     
     private let userDefaultsKey = "UnifiedLogEntries"
+    private let versionKey = "LogsDataVersion"
+    private let currentVersion = 1
     private let notificationManager: NotificationManager
+    private let dataQueue = DispatchQueue(label: "com.corgina.logsmanager", qos: .userInitiated)
     
     init(notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
@@ -117,15 +120,46 @@ class LogsManager: ObservableObject {
     // MARK: - Data Management
     
     private func addLog(_ entry: LogEntry) {
-        logEntries.insert(entry, at: 0)
-        saveLogs()
-        updateTodaysSummary()
+        print("📌 LogsManager.addLog called - Type: \(entry.type), Source: \(entry.source)")
+        
+        dataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let countBefore = self.logEntries.count
+            
+            DispatchQueue.main.async {
+                self.logEntries.insert(entry, at: 0)
+                let countAfter = self.logEntries.count
+                print("📌 LogsManager entries: \(countBefore) -> \(countAfter)")
+                
+                self.dataQueue.async {
+                    self.saveLogs()
+                    
+                    DispatchQueue.main.async {
+                        self.updateTodaysSummary()
+                        print("📌 LogsManager.addLog completed")
+                    }
+                }
+            }
+        }
     }
     
     func deleteLog(_ entry: LogEntry) {
-        logEntries.removeAll { $0.id == entry.id }
-        saveLogs()
-        updateTodaysSummary()
+        dataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                self.logEntries.removeAll { $0.id == entry.id }
+                
+                self.dataQueue.async {
+                    self.saveLogs()
+                    
+                    DispatchQueue.main.async {
+                        self.updateTodaysSummary()
+                    }
+                }
+            }
+        }
     }
     
     func getRelatedLogs(for entry: LogEntry) -> [LogEntry] {
@@ -135,20 +169,26 @@ class LogsManager: ObservableObject {
     // MARK: - Filtering
     
     func filteredLogs(by type: LogType? = nil, date: Date? = nil) -> [LogEntry] {
+        print("🔍 filteredLogs called - Total entries: \(logEntries.count)")
         var filtered = logEntries
         
         if let type = type {
             filtered = filtered.filter { $0.type == type }
+            print("🔍 After type filter (\(type)): \(filtered.count) entries")
         }
         
         if let date = date {
             let calendar = Calendar.current
+            let beforeCount = filtered.count
             filtered = filtered.filter { 
                 calendar.isDate($0.date, inSameDayAs: date)
             }
+            print("🔍 After date filter (today): \(beforeCount) -> \(filtered.count) entries")
         }
         
-        return filtered.sorted { $0.date > $1.date }
+        let sorted = filtered.sorted { $0.date > $1.date }
+        print("🔍 Returning \(sorted.count) filtered entries")
+        return sorted
     }
     
     func logsForToday() -> [LogEntry] {
@@ -239,18 +279,131 @@ class LogsManager: ObservableObject {
         return nil
     }
     
+    // MARK: - Time Editing
+    
+    func updateLogTime(_ log: LogEntry, newDate: Date) {
+        guard let index = logEntries.firstIndex(where: { $0.id == log.id }) else { return }
+        logEntries[index].date = newDate
+        saveLogs()
+        updateTodaysSummary()
+        objectWillChange.send()
+    }
+    
     // MARK: - Persistence
     
     func saveLogs() {
-        if let encoded = try? JSONEncoder().encode(logEntries) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        dataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let entriesToSave = self.logEntries
+            print("💾 LogsManager.saveLogs called with \(entriesToSave.count) entries")
+            
+            do {
+                let encoded = try JSONEncoder().encode(entriesToSave)
+                UserDefaults.standard.set(encoded, forKey: self.userDefaultsKey)
+                
+                if !UserDefaults.standard.synchronize() {
+                    print("💾 ⚠️ UserDefaults synchronize failed")
+                }
+                
+                print("💾 Saved \(entriesToSave.count) entries to UserDefaults")
+            } catch {
+                print("💾 ❌ Failed to encode log entries: \(error.localizedDescription)")
+                
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("DataSaveError"),
+                        object: nil,
+                        userInfo: ["error": "Failed to save logs: \(error.localizedDescription)"]
+                    )
+                }
+            }
         }
     }
     
     private func loadLogs() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let decoded = try? JSONDecoder().decode([LogEntry].self, from: data) {
+        let savedVersion = UserDefaults.standard.integer(forKey: versionKey)
+        
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
+            print("💾 No saved logs found")
+            UserDefaults.standard.set(currentVersion, forKey: versionKey)
+            return
+        }
+        
+        do {
+            if savedVersion < currentVersion {
+                print("💾 Migrating data from version \(savedVersion) to \(currentVersion)")
+                try migrateData(from: savedVersion, data: data)
+            } else {
+                let decoded = try JSONDecoder().decode([LogEntry].self, from: data)
+                
+                if validateLogEntries(decoded) {
+                    logEntries = decoded
+                    print("💾 Loaded \(logEntries.count) log entries successfully")
+                } else {
+                    throw DataError.validationFailed
+                }
+            }
+            
+            UserDefaults.standard.set(currentVersion, forKey: versionKey)
+        } catch {
+            print("💾 ❌ Failed to decode log entries: \(error.localizedDescription)")
+            
+            createBackupBeforeReset(data)
+            logEntries = []
+            
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("DataLoadError"),
+                    object: nil,
+                    userInfo: ["error": "Failed to load saved logs. A backup has been created and data has been reset."]
+                )
+            }
+        }
+    }
+    
+    private func migrateData(from oldVersion: Int, data: Data) throws {
+        switch oldVersion {
+        case 0:
+            let decoded = try JSONDecoder().decode([LogEntry].self, from: data)
             logEntries = decoded
+            print("💾 Migrated \(logEntries.count) entries from v0 to v\(currentVersion)")
+        default:
+            throw DataError.unsupportedVersion(oldVersion)
+        }
+    }
+    
+    private func validateLogEntries(_ entries: [LogEntry]) -> Bool {
+        for entry in entries {
+            if entry.date > Date().addingTimeInterval(86400) {
+                print("💾 ⚠️ Found entry with future date: \(entry.date)")
+                return false
+            }
+        }
+        return true
+    }
+    
+    private func createBackupBeforeReset(_ data: Data) {
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let backupKey = "\(userDefaultsKey)_backup_\(timestamp)"
+        UserDefaults.standard.set(data, forKey: backupKey)
+        print("💾 Created backup at key: \(backupKey)")
+    }
+    
+    enum DataError: LocalizedError {
+        case validationFailed
+        case unsupportedVersion(Int)
+        case corruptedData
+        
+        var errorDescription: String? {
+            switch self {
+            case .validationFailed:
+                return "Data validation failed. The data may be corrupted."
+            case .unsupportedVersion(let version):
+                return "Unsupported data version: \(version)"
+            case .corruptedData:
+                return "Data is corrupted and cannot be loaded."
+            }
         }
     }
     

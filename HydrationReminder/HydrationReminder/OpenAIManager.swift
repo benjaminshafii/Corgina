@@ -88,13 +88,19 @@ struct VoiceAction: Codable, Equatable {
         let item: String?
         let amount: String?
         let unit: String?
+        let calories: String?
         let severity: String?
         let mealType: String?
         let symptoms: [String]?
         let vitaminName: String?
         let notes: String?
+        let timestamp: String?  // ISO 8601 format from GPT
     }
 }
+
+  
+
+
 
 struct VoiceTranscription: Codable {
     let text: String
@@ -110,8 +116,8 @@ struct FoodSuggestion: Codable {
     let avoidIfHigh: Bool
 }
 
-class OpenAIManager: ObservableObject {
-    static let shared = OpenAIManager()
+class OpenAIManager: ObservableObject, @unchecked Sendable {
+    nonisolated static let shared = OpenAIManager()
     private let baseURL = "https://api.openai.com/v1/chat/completions"
     private let whisperURL = "https://api.openai.com/v1/audio/transcriptions"
 
@@ -120,6 +126,9 @@ class OpenAIManager: ObservableObject {
     @Published var lastError: String?
     @Published var lastTranscription: String?
     @Published var detectedActions: [VoiceAction] = []
+    
+    private let maxRetries = 3
+    private let initialRetryDelay: TimeInterval = 1.0
 
     private init() {}
 
@@ -228,57 +237,114 @@ class OpenAIManager: ObservableObject {
             throw OpenAIError.noAPIKey
         }
 
-        isProcessing = true
+        await MainActor.run {
+            self.isProcessing = true
+        }
         defer {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.isProcessing = false
             }
         }
 
-        let boundary = UUID().uuidString
-        var request = URLRequest(url: URL(string: whisperURL)!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        return try await retryWithExponentialBackoff {
+            let boundary = UUID().uuidString
+            var request = URLRequest(url: URL(string: self.whisperURL)!)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 60
 
-        var body = Data()
+            var body = Data()
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
-        body.append(audioData)
-        body.append("\r\n".data(using: .utf8)!)
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+            body.append(audioData)
+            body.append("\r\n".data(using: .utf8)!)
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
-        body.append("whisper-1\r\n".data(using: .utf8)!)
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
+            body.append("whisper-1\r\n".data(using: .utf8)!)
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
-        body.append("json\r\n".data(using: .utf8)!)
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
+            body.append("json\r\n".data(using: .utf8)!)
 
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
-        request.httpBody = body
+            request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw OpenAIError.invalidResponse
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                if httpResponse.statusCode == 429 {
+                    throw OpenAIError.rateLimitExceeded
+                } else if httpResponse.statusCode >= 500 {
+                    throw OpenAIError.serverError
+                } else {
+                    throw OpenAIError.httpError(httpResponse.statusCode)
+                }
+            }
+
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let text = json?["text"] as? String ?? ""
+
+            return VoiceTranscription(
+                text: text,
+                duration: json?["duration"] as? Double,
+                language: json?["language"] as? String
+            )
         }
-
-        guard httpResponse.statusCode == 200 else {
-            throw OpenAIError.httpError(httpResponse.statusCode)
+    }
+    
+    private func retryWithExponentialBackoff<T>(operation: @escaping () async throws -> T) async throws -> T {
+        var lastError: Error?
+        
+        for attempt in 0..<maxRetries {
+            do {
+                return try await operation()
+            } catch let error as OpenAIError {
+                lastError = error
+                
+                switch error {
+                case .rateLimitExceeded, .serverError:
+                    if attempt < maxRetries - 1 {
+                        let delay = initialRetryDelay * pow(2.0, Double(attempt))
+                        print("🔄 Retry attempt \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                case .networkError:
+                    if attempt < maxRetries - 1 {
+                        let delay = initialRetryDelay * pow(1.5, Double(attempt))
+                        print("🔄 Network retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                default:
+                    throw error
+                }
+                
+                throw error
+            } catch {
+                lastError = error
+                
+                if attempt < maxRetries - 1 {
+                    let delay = initialRetryDelay * pow(1.5, Double(attempt))
+                    print("🔄 Generic retry \(attempt + 1)/\(maxRetries) after \(delay)s delay")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                
+                throw error
+            }
         }
-
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let text = json?["text"] as? String ?? ""
-
-        return VoiceTranscription(
-            text: text,
-            duration: json?["duration"] as? Double,
-            language: json?["language"] as? String
-        )
+        
+        throw lastError ?? OpenAIError.networkError
     }
 
     func extractVoiceActions(from transcript: String) async throws -> [VoiceAction] {
@@ -286,30 +352,84 @@ class OpenAIManager: ObservableObject {
             throw OpenAIError.noAPIKey
         }
 
-        isProcessing = true
+        await MainActor.run {
+            self.isProcessing = true
+        }
         defer {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.isProcessing = false
             }
         }
 
+        let currentDate = Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let currentTimestamp = formatter.string(from: currentDate)
+        
+        // Get current hour for context
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: currentDate)
+        
         let prompt = """
         Analyze this voice transcript and extract any actions the user wants to perform.
+        Current timestamp: \(currentTimestamp)
+        Current hour: \(currentHour):00
+        
         Return JSON array of actions with type, details, and confidence.
 
         Types: log_water, log_food, log_symptom, log_vitamin, log_puqe, unknown
 
-        For log_water: put amount and unit in details
-        For log_food: put food name in "item" field in details
-        For log_vitamin: put vitamin name in "vitaminName" field in details  
-        For log_symptom: put symptoms array in "symptoms" field in details
+        TIME PARSING RULES - CRITICAL:
+        1. ALWAYS include a "timestamp" field in ISO 8601 format
+        2. Parse natural language time references:
+           
+           MEAL TIMES (use these specific hours):
+           - "breakfast" or "this morning" -> today at 08:00
+           - "lunch" or "midday" -> today at 12:00  
+           - "dinner" or "supper" or "this evening" -> today at 18:00
+           - "snack" -> use current time unless other context given
+           
+           RELATIVE TIMES:
+           - "just now" or no time mentioned -> use current timestamp
+           - "X hours ago" -> subtract X hours from current time
+           - "X minutes ago" -> subtract X minutes from current time
+           - "earlier" -> subtract 2 hours from current time
+           - "this afternoon" -> today at 14:00
+           - "last night" -> yesterday at 20:00
+           - "yesterday" + meal -> yesterday at meal time
+           
+           SPECIFIC TIMES:
+           - "at 2pm" or "at 14:00" -> today at that time
+           - "at 2pm yesterday" -> yesterday at that time
+           
+        3. For log_food: 
+           - Put food name in "item" field
+           - If meal type mentioned or implied, add "mealType": "breakfast/lunch/dinner/snack"
+           - Parse meal times even if just food is mentioned with meal context
+           
+        4. For log_vitamin: put vitamin/supplement name in "vitaminName" field
+        5. For log_water: put amount and unit in details
+        6. For log_symptom: put symptoms array in "symptoms" field
 
         Transcript: "\(transcript)"
 
-        Example responses:
-        - Water: [{"type": "log_water", "details": {"amount": "8", "unit": "oz"}, "confidence": 0.9}]
-        - Food: [{"type": "log_food", "details": {"item": "chicken sandwich", "mealType": "lunch"}, "confidence": 0.85}]
-        - Vitamin: [{"type": "log_vitamin", "details": {"vitaminName": "prenatal vitamin"}, "confidence": 0.95}]
+        Example responses (note ALL have timestamps):
+        - "I ate a potato for breakfast": 
+          [{"type": "log_food", "details": {"item": "potato", "mealType": "breakfast", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+        
+        - "I had a banana for supper":
+          [{"type": "log_food", "details": {"item": "banana", "mealType": "dinner", "timestamp": "\(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.9}]
+        
+        - "I drank water 2 hours ago":
+          [{"type": "log_water", "details": {"amount": "some", "unit": "water", "timestamp": "\(currentDate.addingTimeInterval(-7200).ISO8601Format())"}, "confidence": 0.85}]
+        
+        - "I took my vitamins this morning":
+          [{"type": "log_vitamin", "details": {"vitaminName": "vitamins", "timestamp": "\(calendar.date(bySettingHour: 8, minute: 0, second: 0, of: currentDate)!.ISO8601Format())"}, "confidence": 0.95}]
+        
+        - "I ate pizza" (no time specified):
+          [{"type": "log_food", "details": {"item": "pizza", "timestamp": "\(currentTimestamp)"}, "confidence": 0.9}]
+        
+        Return ONLY valid JSON array. Every action MUST have a timestamp field.
         """
 
         let messages = [
@@ -514,21 +634,66 @@ class OpenAIManager: ObservableObject {
         case apiError(String)
         case invalidRequest
         case networkError
+        case audioTooLarge
+        case rateLimitExceeded
+        case serverError
 
         var errorDescription: String? {
             switch self {
             case .noAPIKey:
-                return "OpenAI API key is required"
+                return "OpenAI API key is required. Please add your API key in Settings."
             case .invalidResponse:
-                return "Invalid response from OpenAI API"
+                return "Received invalid response from OpenAI. Please try again."
             case .httpError(let code):
-                return "HTTP error: \(code)"
+                return getDetailedHTTPError(code)
             case .apiError(let message):
-                return "API error: \(message)"
+                return "OpenAI API error: \(message)"
             case .invalidRequest:
-                return "Invalid request"
+                return "The request format was invalid. Please try again."
             case .networkError:
-                return "Network error occurred"
+                return "Network connection failed. Please check your internet connection."
+            case .audioTooLarge:
+                return "Audio file is too large (max 25MB). Please record shorter clips."
+            case .rateLimitExceeded:
+                return "Too many requests. Please wait a moment before trying again."
+            case .serverError:
+                return "OpenAI servers are experiencing issues. Please try again in a few minutes."
+            }
+        }
+        
+        private func getDetailedHTTPError(_ code: Int) -> String {
+            switch code {
+            case 400:
+                return "Bad request. The audio format may be invalid."
+            case 401:
+                return "Invalid API key. Please check your OpenAI API key in Settings."
+            case 403:
+                return "Access forbidden. Your API key may not have permission for this operation."
+            case 429:
+                return "Rate limit exceeded. You've made too many requests. Please wait and try again."
+            case 500, 502, 503, 504:
+                return "OpenAI server error (\(code)). The service is temporarily unavailable."
+            default:
+                return "HTTP error \(code). Please try again later."
+            }
+        }
+        
+        var recoverySuggestion: String? {
+            switch self {
+            case .noAPIKey:
+                return "Go to Settings and add your OpenAI API key to enable AI features."
+            case .networkError:
+                return "Make sure you're connected to the internet and try again."
+            case .rateLimitExceeded:
+                return "Wait 30-60 seconds before making another request."
+            case .audioTooLarge:
+                return "Try recording in shorter segments (under 2 minutes)."
+            case .httpError(401), .httpError(403):
+                return "Verify your API key is correct and has not expired."
+            case .serverError, .httpError(500...599):
+                return "This is a temporary issue with OpenAI. Try again in 5-10 minutes."
+            default:
+                return nil
             }
         }
     }

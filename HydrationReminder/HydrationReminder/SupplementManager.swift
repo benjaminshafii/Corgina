@@ -8,6 +8,7 @@ class SupplementManager: ObservableObject {
     
     private let userDefaultsKey = "SavedSupplements"
     private let notificationManager: NotificationManager
+    private let dataQueue = DispatchQueue(label: "com.corgina.supplementmanager", qos: .userInitiated)
     
     struct SupplementSummary {
         let totalSupplements: Int
@@ -65,11 +66,66 @@ class SupplementManager: ObservableObject {
     }
     
     func logIntakeByName(_ name: String, taken: Bool = true) {
-        guard let supplement = supplements.first(where: { 
-            $0.name.lowercased().contains(name.lowercased()) 
-        }) else { return }
+        // Try to find the supplement by various matching strategies
+        let normalizedName = name.lowercased()
+            .replacingOccurrences(of: "vitamin", with: "")
+            .replacingOccurrences(of: "vitamins", with: "")
+            .replacingOccurrences(of: "supplement", with: "")
+            .replacingOccurrences(of: "supplements", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         
-        logIntake(supplementId: supplement.id, taken: taken)
+        // First try exact match
+        var supplement = supplements.first(where: { 
+            $0.name.lowercased() == normalizedName 
+        })
+        
+        // Then try contains match
+        if supplement == nil {
+            supplement = supplements.first(where: { 
+                $0.name.lowercased().contains(normalizedName) ||
+                normalizedName.contains($0.name.lowercased())
+            })
+        }
+        
+        // Try common variations
+        if supplement == nil && normalizedName.contains("prenatal") {
+            supplement = supplements.first(where: { 
+                $0.name.lowercased().contains("prenatal") 
+            })
+        }
+        
+        if let supplement = supplement {
+            print("💊 Found supplement match: \(supplement.name) for query: \(name)")
+            logIntake(supplementId: supplement.id, taken: taken)
+        } else {
+            print("⚠️ No supplement found matching: \(name)")
+            print("⚠️ Available supplements: \(supplements.map { $0.name }.joined(separator: ", "))")
+            
+            // If no match found but it's a common supplement, add it automatically
+            if normalizedName.contains("prenatal") || 
+               normalizedName.contains("iron") || 
+               normalizedName.contains("folic") ||
+               normalizedName.contains("calcium") ||
+               normalizedName.contains("vitamin d") ||
+               normalizedName.contains("dha") ||
+               normalizedName.contains("omega") {
+                // Auto-add the supplement
+                let newSupplement = Supplement(
+                    name: name.capitalized,
+                    dosage: "1 tablet",
+                    frequency: .daily,
+                    reminderTimes: [],
+                    remindersEnabled: false,
+                    notes: "Added via voice command",
+                    isEssential: normalizedName.contains("prenatal")
+                )
+                addSupplement(newSupplement)
+                print("✅ Auto-added new supplement: \(name)")
+                
+                // Now log the intake
+                logIntake(supplementId: newSupplement.id, taken: taken)
+            }
+        }
     }
     
     func getTodaysIntake() -> [(supplement: Supplement, taken: Bool, timesNeeded: Int)] {
@@ -131,6 +187,18 @@ class SupplementManager: ObservableObject {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         
         for supplement in supplements where supplement.remindersEnabled {
+            for reminderTime in supplement.reminderTimes {
+                scheduleReminder(for: supplement, at: reminderTime)
+            }
+        }
+    }
+    
+    func scheduleReminder(for supplement: Supplement) {
+        // Cancel existing reminders for this supplement
+        cancelReminders(for: supplement)
+        
+        // Schedule new reminders if enabled
+        if supplement.remindersEnabled {
             for reminderTime in supplement.reminderTimes {
                 scheduleReminder(for: supplement, at: reminderTime)
             }
@@ -210,15 +278,56 @@ class SupplementManager: ObservableObject {
     }
     
     private func saveSupplements() {
-        if let encoded = try? JSONEncoder().encode(supplements) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        dataQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let supplementsToSave = self.supplements
+            
+            do {
+                let encoded = try JSONEncoder().encode(supplementsToSave)
+                UserDefaults.standard.set(encoded, forKey: self.userDefaultsKey)
+                
+                if !UserDefaults.standard.synchronize() {
+                    print("💊 ⚠️ UserDefaults synchronize failed")
+                }
+                
+                print("💊 Saved \(supplementsToSave.count) supplements successfully")
+            } catch {
+                print("💊 ❌ Failed to encode supplements: \(error.localizedDescription)")
+                
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("DataSaveError"),
+                        object: nil,
+                        userInfo: ["error": "Failed to save supplements: \(error.localizedDescription)"]
+                    )
+                }
+            }
         }
     }
     
     private func loadSupplements() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let decoded = try? JSONDecoder().decode([Supplement].self, from: data) {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else {
+            print("💊 No saved supplements found")
+            return
+        }
+        
+        do {
+            let decoded = try JSONDecoder().decode([Supplement].self, from: data)
             supplements = decoded
+            print("💊 Loaded \(supplements.count) supplements successfully")
+        } catch {
+            print("💊 ❌ Failed to decode supplements: \(error.localizedDescription)")
+            
+            supplements = []
+            
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("DataLoadError"),
+                    object: nil,
+                    userInfo: ["error": "Failed to load supplements. Your data may be corrupted."]
+                )
+            }
         }
     }
 }

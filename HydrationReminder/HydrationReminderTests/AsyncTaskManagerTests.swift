@@ -64,7 +64,7 @@ class AsyncTaskManagerTests: XCTestCase {
     
     func testFoodLogCreatedImmediatelyWithPlaceholders() {
         // Given
-        let voiceManager = VoiceLogManager()
+        let voiceManager = VoiceLogManager.makeForTesting()
         voiceManager.configure(logsManager: logsManager, supplementManager: SupplementManager(notificationManager: NotificationManager()))
         
         let action = VoiceAction(

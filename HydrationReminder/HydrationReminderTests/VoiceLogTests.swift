@@ -20,7 +20,7 @@ class VoiceLogTests: XCTestCase {
         notificationManager = NotificationManager()
         logsManager = LogsManager(notificationManager: notificationManager)
         supplementManager = SupplementManager(notificationManager: notificationManager)
-        voiceLogManager = VoiceLogManager()
+        voiceLogManager = VoiceLogManager.makeForTesting()
         
         // Configure VoiceLogManager with shared managers
         voiceLogManager.configure(logsManager: logsManager, supplementManager: supplementManager)
@@ -292,7 +292,7 @@ class VoiceLogTests: XCTestCase {
         voiceLogManager.saveLogs()
         
         // Create new manager to test persistence
-        let newVoiceManager = VoiceLogManager()
+        let newVoiceManager = VoiceLogManager.makeForTesting()
         
         // Then
         XCTAssertEqual(newVoiceManager.voiceLogs.count, 1)

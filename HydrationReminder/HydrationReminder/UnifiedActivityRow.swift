@@ -3,10 +3,17 @@ import SwiftUI
 struct UnifiedActivityRow: View {
     let activity: UnifiedActivityEntry
     let isCompact: Bool
+    let logsManager: LogsManager?
+    let voiceLogManager: VoiceLogManager
+    @State private var showingTimeEdit = false
+    @State private var editableDate: Date
     
-    init(activity: UnifiedActivityEntry, isCompact: Bool = false) {
+    init(activity: UnifiedActivityEntry, isCompact: Bool = false, logsManager: LogsManager? = nil, voiceLogManager: VoiceLogManager = VoiceLogManager.shared) {
         self.activity = activity
         self.isCompact = isCompact
+        self.logsManager = logsManager
+        self.voiceLogManager = voiceLogManager
+        self._editableDate = State(initialValue: activity.date)
     }
     
     var body: some View {
@@ -34,9 +41,23 @@ struct UnifiedActivityRow: View {
                     
                     Spacer()
                     
-                    Text(formatTime(activity.date))
+                    Button(action: {
+                        editableDate = activity.date
+                        showingTimeEdit = true
+                    }) {
+                        HStack(spacing: 2) {
+                            Image(systemName: "clock")
+                                .font(.caption2)
+                            Text(formatTime(activity.date))
+                        }
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
                 
                 if let subtitle = activity.subtitle, !isCompact {
@@ -77,6 +98,15 @@ struct UnifiedActivityRow: View {
         .padding(.horizontal, isCompact ? 12 : 16)
         .background(Color(.systemBackground))
         .cornerRadius(10)
+        .sheet(isPresented: $showingTimeEdit) {
+            TimeEditSheet(date: $editableDate)
+                .onDisappear {
+                    // Update the appropriate log when sheet is dismissed
+                    if editableDate != activity.date {
+                        updateActivityTime()
+                    }
+                }
+        }
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -90,5 +120,18 @@ struct UnifiedActivityRow: View {
         }
         
         return formatter.string(from: date)
+    }
+    
+    private func updateActivityTime() {
+        // Update the appropriate log based on the original entry type
+        if let logEntry = activity.originalEntry as? LogEntry, let logsManager = logsManager {
+            logsManager.updateLogTime(logEntry, newDate: editableDate)
+        } else if let voiceLog = activity.originalEntry as? VoiceLog {
+            if let index = voiceLogManager.voiceLogs.firstIndex(where: { $0.id == voiceLog.id }) {
+                voiceLogManager.voiceLogs[index].date = editableDate
+                voiceLogManager.saveLogs()
+            }
+        }
+        // PhotoFoodLog time editing can be added similarly if needed
     }
 }

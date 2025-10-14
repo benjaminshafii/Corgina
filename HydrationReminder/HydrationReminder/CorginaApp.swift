@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct PlanyApp: App {
+struct CorginaApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var logsManager: LogsManager

@@ -11,11 +11,13 @@ class CloudBackupManager: ObservableObject {
     @Published var backupProgress: Double = 0
     @Published var errorMessage: String?
     
-    private let container = CKContainer.default() // Use default container
+    private let container = CKContainer.default()
     private let database: CKDatabase
     private let recordZone = CKRecordZone(zoneName: "PregnancyData")
     private let userDefaultsKey = "CloudBackupEnabled"
     private let lastBackupKey = "LastCloudBackupDate"
+    private var isZoneReady = false
+    private var zoneSetupTask: Task<Void, Error>?
     
     enum BackupStatus {
         case idle
@@ -36,24 +38,59 @@ class CloudBackupManager: ObservableObject {
     }
     
     private func setupCloudKit() {
-        // Check if CloudKit is available before proceeding
-        CKContainer.default().accountStatus { status, error in
-            DispatchQueue.main.async {
-                if status == .available {
-                    // Only setup CloudKit if available
-                    self.database.save(self.recordZone) { _, error in
-                        if let error = error as? CKError, error.code != .zoneNotFound {
-                            print("Error creating zone: \(error)")
+        zoneSetupTask = Task {
+            do {
+                let status = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKAccountStatus, Error>) in
+                    CKContainer.default().accountStatus { accountStatus, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: accountStatus)
                         }
                     }
-                    self.setupSubscriptions()
-                } else if status == .noAccount {
-                    self.isBackupEnabled = false
-                    self.errorMessage = "Please sign in to iCloud in Settings to enable backup."
-                } else {
-                    self.isBackupEnabled = false
-                    self.errorMessage = "iCloud not available. Status: \(status.rawValue)"
-                    print("CloudKit status: \(status.rawValue), error: \(error?.localizedDescription ?? "none")")
+                }
+                
+                await MainActor.run {
+                    guard status == .available else {
+                        if status == .noAccount {
+                            self.isBackupEnabled = false
+                            self.errorMessage = "Please sign in to iCloud in Settings to enable backup."
+                        } else {
+                            self.isBackupEnabled = false
+                            self.errorMessage = "iCloud not available. Status: \(status.rawValue)"
+                        }
+                        return
+                    }
+                }
+                
+                guard status == .available else {
+                    throw BackupError.iCloudNotAvailable
+                }
+                
+                do {
+                    let zone = try await database.save(self.recordZone)
+                    await MainActor.run {
+                        self.isZoneReady = true
+                        print("✅ iCloud zone ready: \(zone.zoneID)")
+                    }
+                } catch let error as CKError {
+                    if error.code == .serverRecordChanged || error.code == .zoneNotFound {
+                        await MainActor.run {
+                            self.isZoneReady = true
+                            print("✅ iCloud zone already exists")
+                        }
+                    } else {
+                        print("❌ Error creating zone: \(error)")
+                        throw error
+                    }
+                }
+                
+                self.setupSubscriptions()
+                
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to setup iCloud: \(error.localizedDescription)"
+                    print("❌ CloudKit setup failed: \(error)")
                 }
             }
         }
@@ -64,6 +101,7 @@ class CloudBackupManager: ObservableObject {
         let subscription = CKQuerySubscription(
             recordType: "BackupData",
             predicate: NSPredicate(value: true),
+            subscriptionID: "backup-data-changes",
             options: [.firesOnRecordCreation, .firesOnRecordUpdate]
         )
         
@@ -96,13 +134,24 @@ class CloudBackupManager: ObservableObject {
             errorMessage = nil
             
             do {
-                // Collect all data
-                let backupData = try await collectAllData()
+                if !isZoneReady {
+                    if let setupTask = zoneSetupTask {
+                        try? await setupTask.value
+                    } else {
+                        setupCloudKit()
+                        try? await zoneSetupTask?.value
+                    }
+                }
                 
-                // Create records for each data type
+                guard isZoneReady else {
+                    errorMessage = "iCloud zone not ready. Please try again."
+                    backupStatus = .error
+                    return
+                }
+                
+                let backupData = try await collectAllData()
                 let records = try createBackupRecords(from: backupData)
                 
-                // Upload to iCloud
                 let totalRecords = Double(records.count)
                 var uploadedCount = 0.0
                 
@@ -116,7 +165,6 @@ class CloudBackupManager: ObservableObject {
                 UserDefaults.standard.set(lastBackupDate, forKey: lastBackupKey)
                 backupStatus = .complete
                 
-                // Also backup to iCloud Key-Value store for quick sync
                 backupToKeyValueStore(backupData)
                 
             } catch {
@@ -156,7 +204,7 @@ class CloudBackupManager: ObservableObject {
     
     private func collectAllData() async throws -> BackupData {
         return BackupData(
-            voiceLogs: VoiceLogManager().voiceLogs,
+            voiceLogs: VoiceLogManager.shared.voiceLogs,
             photoLogs: PhotoFoodLogManager().photoLogs,
             logEntries: LogsManager(notificationManager: NotificationManager()).logEntries,
             puqeScores: PUQEManager().scores,
@@ -167,9 +215,12 @@ class CloudBackupManager: ObservableObject {
     }
     
     private func createBackupRecords(from data: BackupData) throws -> [CKRecord] {
+        guard isZoneReady else {
+            throw BackupError.zoneNotReady
+        }
+        
         var records: [CKRecord] = []
         
-        // Create main backup record
         let mainRecord = CKRecord(recordType: "BackupData", recordID: CKRecord.ID(recordName: "MainBackup", zoneID: recordZone.zoneID))
         mainRecord["backupDate"] = data.backupDate
         mainRecord["deviceName"] = UIDevice.current.name
@@ -270,7 +321,7 @@ class CloudBackupManager: ObservableObject {
                 // Find corresponding photo log and update with image data
                 if let index = data.photoLogs.firstIndex(where: { $0.id.uuidString == photoLogId }) {
                     // Need to create a new instance since imageData is immutable
-                    var updatedLog = data.photoLogs[index]
+                    let updatedLog = data.photoLogs[index]
                     data.photoLogs[index] = PhotoFoodLog(
                         id: updatedLog.id,
                         date: updatedLog.date,
@@ -386,7 +437,7 @@ class CloudBackupManager: ObservableObject {
     
     private func collectAllDataSync() throws -> BackupData {
         return BackupData(
-            voiceLogs: VoiceLogManager().voiceLogs,
+            voiceLogs: VoiceLogManager.shared.voiceLogs,
             photoLogs: PhotoFoodLogManager().photoLogs,
             logEntries: LogsManager(notificationManager: NotificationManager()).logEntries,
             puqeScores: PUQEManager().scores,
@@ -414,6 +465,7 @@ class CloudBackupManager: ObservableObject {
     enum BackupError: LocalizedError {
         case noDataFound
         case iCloudNotAvailable
+        case zoneNotReady
         
         var errorDescription: String? {
             switch self {
@@ -421,6 +473,8 @@ class CloudBackupManager: ObservableObject {
                 return "No backup data found in iCloud"
             case .iCloudNotAvailable:
                 return "iCloud is not available. Please sign in to iCloud in Settings."
+            case .zoneNotReady:
+                return "iCloud zone is not ready. Please wait and try again."
             }
         }
     }

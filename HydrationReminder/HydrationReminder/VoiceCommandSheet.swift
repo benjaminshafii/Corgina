@@ -9,6 +9,7 @@ struct VoiceCommandSheet: View {
     @State private var showExamples = false
     @State private var timer: Timer?
     @State private var errorMessage: String?
+    @State private var showConfigurationError = false
     let onDismiss: () -> Void
     
     var body: some View {
@@ -62,10 +63,6 @@ struct VoiceCommandSheet: View {
                         Text("Listening...")
                             .font(.headline)
                             .foregroundColor(.primary)
-                        
-                        Text(formatTime(voiceLogManager.recordingTime))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.secondary)
                     } else if voiceLogManager.isProcessingVoice {
                         HStack {
                             ProgressView()
@@ -81,12 +78,47 @@ struct VoiceCommandSheet: View {
                     }
                 }
                 
-                // Transcription Display - Always show if available
-                if let transcript = voiceLogManager.lastTranscription, !transcript.isEmpty, !isListening {
+                // On-Device Transcription (shown during recording)
+                if !voiceLogManager.onDeviceSpeechManager.liveTranscript.isEmpty && 
+                   isListening {
                     VStack(spacing: 4) {
-                        Text("You said:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "waveform")
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                            Text("On-device:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("\"\(voiceLogManager.onDeviceSpeechManager.liveTranscript)\"")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .italic()
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                
+                // Refined Transcription (shown after processing)
+                if let transcript = voiceLogManager.lastTranscription, 
+                   !transcript.isEmpty, 
+                   !isListening,
+                   voiceLogManager.actionRecognitionState != .recognizing {
+                    VStack(spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                            Text("Transcribed:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                         
                         Text("\"\(transcript)\"")
                             .font(.body)
@@ -94,12 +126,12 @@ struct VoiceCommandSheet: View {
                             .italic()
                             .padding(.horizontal)
                             .padding(.vertical, 8)
-                            .background(Color(.secondarySystemBackground))
+                            .background(Color.green.opacity(0.1))
                             .cornerRadius(8)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal)
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .scale))
                 }
                 
                 // Error or API Key Warning
@@ -139,11 +171,16 @@ struct VoiceCommandSheet: View {
                 }
                 
                 // Detected Actions
-                if !voiceLogManager.detectedActions.isEmpty && !isListening {
+                if !voiceLogManager.detectedActions.isEmpty && !isListening && voiceLogManager.actionRecognitionState == .executing {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Detected Actions:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "list.bullet.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                            Text("Actions:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                         
                         ForEach(voiceLogManager.detectedActions, id: \.type) { action in
                             HStack {
@@ -163,59 +200,36 @@ struct VoiceCommandSheet: View {
                             }
                             .padding(.vertical, 4)
                         }
-                        
-                        // Action buttons
-                        HStack(spacing: 12) {
-                            Button(action: {
-                                voiceLogManager.detectedActions = []
-                                voiceLogManager.lastTranscription = nil
-                            }) {
-                                Text("Cancel")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(Color.red.opacity(0.1))
-                                    .cornerRadius(8)
-                            }
-                            
-                            Button(action: {
-                                // Execute the actions
-                                voiceLogManager.executeVoiceActions(voiceLogManager.detectedActions)
-                                voiceLogManager.detectedActions = []
-                                onDismiss()
-                            }) {
-                                Text("Confirm & Log")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(Color.green)
-                                    .cornerRadius(8)
-                            }
-                        }
-                        
-                        Text("Auto-logging in 3 seconds...")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .italic()
                     }
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color.orange.opacity(0.1))
                     .cornerRadius(10)
                     .padding(.horizontal)
-                    .onAppear {
-                        // Auto-execute actions after 3 seconds if not cancelled
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            if !voiceLogManager.detectedActions.isEmpty {
-                                voiceLogManager.executeVoiceActions(voiceLogManager.detectedActions)
-                                voiceLogManager.detectedActions = []
-                                onDismiss()
-                            }
+                    .transition(.opacity.combined(with: .scale))
+                }
+                
+                // Completed State
+                if voiceLogManager.actionRecognitionState == .completed && !voiceLogManager.executedActions.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.green)
+                        
+                        Text("Successfully logged!")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        ForEach(voiceLogManager.executedActions, id: \.type) { action in
+                            Text(descriptionForAction(action))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
+                    .padding()
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .transition(.opacity.combined(with: .scale))
                 }
                 
                 // Example Commands
@@ -262,17 +276,21 @@ struct VoiceCommandSheet: View {
                 isListening = true
                 startAnimations()
             }
+            
+            if !voiceLogManager.isConfigured {
+                showConfigurationError = true
+            }
+        }
+        .alert("Voice Logging Not Available", isPresented: $showConfigurationError) {
+            Button("OK") {
+                onDismiss()
+            }
+        } message: {
+            Text("Voice logging system is not configured. Please restart the app. If the problem persists, contact support.")
         }
         .onDisappear {
             if isListening {
                 stopRecording()
-            }
-        }
-        .onReceive(voiceLogManager.$detectedActions) { actions in
-            if !actions.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    onDismiss()
-                }
             }
         }
     }
@@ -286,9 +304,14 @@ struct VoiceCommandSheet: View {
     }
     
     private func startRecording() {
-        // Clear previous transcription and actions
+        // Clear ALL previous state
         voiceLogManager.lastTranscription = nil
         voiceLogManager.detectedActions = []
+        voiceLogManager.showActionConfirmation = false
+        
+        // Add haptic feedback when starting
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
         
         voiceLogManager.requestMicrophonePermission { granted in
             if granted {
@@ -300,6 +323,10 @@ struct VoiceCommandSheet: View {
     }
     
     private func stopRecording() {
+        // Add haptic feedback when stopping
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
         voiceLogManager.stopRecording()
         isListening = false
         stopAnimations()
@@ -311,12 +338,6 @@ struct VoiceCommandSheet: View {
     
     private func stopAnimations() {
         animationScale = 1.0
-    }
-    
-    private func formatTime(_ time: TimeInterval) -> String {
-        let minutes = Int(time) / 60
-        let seconds = Int(time) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
     }
     
     private func iconForAction(_ type: VoiceAction.ActionType) -> String {

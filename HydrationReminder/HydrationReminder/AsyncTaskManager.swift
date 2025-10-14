@@ -97,30 +97,20 @@ actor AsyncTaskManager {
         activeTasks[task.id] = Task { [weak self] in
             guard let self = self else { return }
             
-            // Update status
             await self.updateTaskStatus(task.id, status: .processing)
             
-            do {
-                switch task.type {
-                case .fetchFoodMacros:
-                    await self.processFoodMacros(task)
-                case .analyzeFoodImage:
-                    await self.processImageAnalysis(task)
-                case .fetchPUQESuggestions:
-                    await self.processPUQESuggestions(task)
-                case .processVoiceCommand:
-                    await self.processVoiceCommand(task)
-                }
-                
-                // Mark as completed
-                await self.updateTaskStatus(task.id, status: .completed)
-                
-            } catch {
-                // Handle failure
-                await self.handleTaskFailure(task, error: error)
+            switch task.type {
+            case .fetchFoodMacros:
+                await self.processFoodMacros(task)
+            case .analyzeFoodImage:
+                await self.processImageAnalysis(task)
+            case .fetchPUQESuggestions:
+                await self.processPUQESuggestions(task)
+            case .processVoiceCommand:
+                await self.processVoiceCommand(task)
             }
             
-            // Clean up
+            await self.updateTaskStatus(task.id, status: .completed)
             await self.removeActiveTask(task.id)
         }
     }
@@ -181,7 +171,6 @@ actor AsyncTaskManager {
                 }
             }
             
-            // Store result
             let resultData = [
                 "calories": String(macros.calories),
                 "protein": String(macros.protein),
@@ -189,7 +178,6 @@ actor AsyncTaskManager {
                 "fat": String(macros.fat)
             ]
             await updateTaskResult(task.id, result: resultData)
-            
         } catch {
             await handleTaskFailure(task, error: error)
         }
@@ -219,7 +207,7 @@ actor AsyncTaskManager {
         }
     }
     
-    private func updateTaskResult(_ taskId: UUID, result: [String: String]) {
+    private func updateTaskResult(_ taskId: UUID, result: [String: String]) async {
         if let index = taskQueue.firstIndex(where: { $0.id == taskId }) {
             if let jsonData = try? JSONEncoder().encode(result),
                let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -241,7 +229,7 @@ actor AsyncTaskManager {
                 let delay = Double(taskQueue[index].retryCount) * 2.0
                 Task {
                     try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    await self.processTask(taskQueue[index])
+                    self.processTask(taskQueue[index])
                 }
             } else {
                 taskQueue[index].status = .failed

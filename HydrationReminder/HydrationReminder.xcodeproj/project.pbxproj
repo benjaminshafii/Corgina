@@ -7,10 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1000001295B0A6700000001 /* PlanyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000295B0A6700000001 /* PlanyApp.swift */; };
+		4029890D10087370D98FB69C /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB767F1E6B37F669A8EA966F /* AboutView.swift */; };
+		4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */; };
+		6462F692FDFF9E541749BA01 /* DataBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */; };
+		6A00DF91C6691890CEC9B48E /* DisclaimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3791C3E12979F37175224A /* DisclaimerView.swift */; };
+		94F2E384B0C315355700530D /* ExpandableVoiceNavbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 236C3AF85D5591C712FF5B45 /* ExpandableVoiceNavbar.swift */; };
+		9950EC605422ADD814B6BEDC /* LiquidGlassHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB3703F168FD96710D1AF04 /* LiquidGlassHelpers.swift */; };
+		A1000001295B0A6700000001 /* CorginaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000295B0A6700000001 /* CorginaApp.swift */; };
 		A1000003295B0A6700000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002295B0A6700000001 /* ContentView.swift */; };
 		A1000005295B0A6900000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000004295B0A6900000001 /* Assets.xcassets */; };
-		A1000008295B0A6900000001 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000007295B0A6900000001 /* Preview Assets.xcassets */; };
 		A1000010295B0A7000000001 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000F295B0A7000000001 /* NotificationManager.swift */; };
 		A35075A92E52334B00D2367C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075A82E52334B00D2367C /* SettingsView.swift */; };
 		A35075AB2E52383A00D2367C /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35075AA2E52383A00D2367C /* MainTabView.swift */; };
@@ -28,7 +33,6 @@
 		A3655F792E67F99D00579475 /* Supplement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F732E67F99D00579475 /* Supplement.swift */; };
 		A3655F7A2E67F99D00579475 /* CloudBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F702E67F99D00579475 /* CloudBackupManager.swift */; };
 		A3655F7B2E67F99D00579475 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F722E67F99D00579475 /* ShareSheet.swift */; };
-		A3655F7F2E67FCA700579475 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A3655F7C2E67FCA700579475 /* Preview Assets.xcassets */; };
 		A3655F802E67FCA700579475 /* VoiceCommandSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F7E2E67FCA700579475 /* VoiceCommandSheet.swift */; };
 		A3655F832E680E9000579475 /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F822E680E9000579475 /* MoreView.swift */; };
 		A3655F872E68859500579475 /* UnifiedActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3655F852E68859500579475 /* UnifiedActivityRow.swift */; };
@@ -40,11 +44,17 @@
 		A3C2C1312E66A286005A322F /* PUQEScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C12C2E66A286005A322F /* PUQEScore.swift */; };
 		A3C2C1332E66A52B005A322F /* OpenAIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C1322E66A52B005A322F /* OpenAIManager.swift */; };
 		A3C2C1352E66A836005A322F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C2C1342E66A836005A322F /* DashboardView.swift */; };
+		A3C7162B2E69E5F70090D689 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A3C716272E69E5F70090D689 /* Preview Assets.xcassets */; };
+		A3C7162C2E69E5F70090D689 /* TimeEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C716292E69E5F70090D689 /* TimeEditSheet.swift */; };
+		A3C7162D2E69E5F70090D689 /* TimeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C7162A2E69E5F70090D689 /* TimeParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnDeviceSpeechManager.swift; sourceTree = "<group>"; };
+		236C3AF85D5591C712FF5B45 /* ExpandableVoiceNavbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExpandableVoiceNavbar.swift; sourceTree = "<group>"; };
+		7AB3703F168FD96710D1AF04 /* LiquidGlassHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiquidGlassHelpers.swift; sourceTree = "<group>"; };
 		A0FFFFFD295B0A6700000001 /* HydrationReminder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HydrationReminder.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1000000295B0A6700000001 /* PlanyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanyApp.swift; sourceTree = "<group>"; };
+		A1000000295B0A6700000001 /* CorginaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorginaApp.swift; sourceTree = "<group>"; };
 		A1000002295B0A6700000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000004295B0A6900000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000007295B0A6900000001 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -79,6 +89,12 @@
 		A3C2C12D2E66A286005A322F /* PUQEScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUQEScoreView.swift; sourceTree = "<group>"; };
 		A3C2C1322E66A52B005A322F /* OpenAIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIManager.swift; sourceTree = "<group>"; };
 		A3C2C1342E66A836005A322F /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A3C716272E69E5F70090D689 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A3C716292E69E5F70090D689 /* TimeEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEditSheet.swift; sourceTree = "<group>"; };
+		A3C7162A2E69E5F70090D689 /* TimeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeParser.swift; sourceTree = "<group>"; };
+		AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DataBackupManager.swift; sourceTree = "<group>"; };
+		EB767F1E6B37F669A8EA966F /* AboutView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		FA3791C3E12979F37175224A /* DisclaimerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisclaimerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +127,9 @@
 		A0FFFFFF295B0A6700000001 /* HydrationReminder */ = {
 			isa = PBXGroup;
 			children = (
+				A3C716282E69E5F70090D689 /* Preview Content */,
+				A3C716292E69E5F70090D689 /* TimeEditSheet.swift */,
+				A3C7162A2E69E5F70090D689 /* TimeParser.swift */,
 				A3655F842E68859500579475 /* AsyncTaskManager.swift */,
 				A3655F852E68859500579475 /* UnifiedActivityRow.swift */,
 				A3655F862E68859500579475 /* UnifiedActivityViewModel.swift */,
@@ -141,11 +160,17 @@
 				A35075AA2E52383A00D2367C /* MainTabView.swift */,
 				A35075A82E52334B00D2367C /* SettingsView.swift */,
 				A1000011295B0A7100000001 /* Info.plist */,
-				A1000000295B0A6700000001 /* PlanyApp.swift */,
+				A1000000295B0A6700000001 /* CorginaApp.swift */,
 				A1000002295B0A6700000001 /* ContentView.swift */,
 				A100000F295B0A7000000001 /* NotificationManager.swift */,
 				A1000004295B0A6900000001 /* Assets.xcassets */,
 				A1000006295B0A6900000001 /* Preview Content */,
+				EB767F1E6B37F669A8EA966F /* AboutView.swift */,
+				AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */,
+				FA3791C3E12979F37175224A /* DisclaimerView.swift */,
+				236C3AF85D5591C712FF5B45 /* ExpandableVoiceNavbar.swift */,
+				7AB3703F168FD96710D1AF04 /* LiquidGlassHelpers.swift */,
+				16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */,
 			);
 			path = HydrationReminder;
 			sourceTree = "<group>";
@@ -166,6 +191,14 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		A3C716282E69E5F70090D689 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A3C716272E69E5F70090D689 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -182,7 +215,7 @@
 			dependencies = (
 			);
 			name = HydrationReminder;
-			productName = HydrationReminder;
+			productName = Corgina;
 			productReference = A0FFFFFD295B0A6700000001 /* HydrationReminder.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -194,7 +227,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					A0FFFFFC295B0A6700000001 = {
 						CreatedOnToolsVersion = 15.0;
@@ -224,8 +257,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000008295B0A6900000001 /* Preview Assets.xcassets in Resources */,
-				A3655F7F2E67FCA700579475 /* Preview Assets.xcassets in Resources */,
+				A3C7162B2E69E5F70090D689 /* Preview Assets.xcassets in Resources */,
 				A1000005295B0A6900000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -246,12 +278,14 @@
 				A3655F792E67F99D00579475 /* Supplement.swift in Sources */,
 				A3655F7A2E67F99D00579475 /* CloudBackupManager.swift in Sources */,
 				A3655F7B2E67F99D00579475 /* ShareSheet.swift in Sources */,
-				A1000001295B0A6700000001 /* PlanyApp.swift in Sources */,
+				A1000001295B0A6700000001 /* CorginaApp.swift in Sources */,
 				A3C2C12E2E66A286005A322F /* PUQEScoreView.swift in Sources */,
 				A3C2C12F2E66A286005A322F /* PhotoFoodLog.swift in Sources */,
 				A3C2C1302E66A286005A322F /* PhotoFoodLogView.swift in Sources */,
 				A3C2C1312E66A286005A322F /* PUQEScore.swift in Sources */,
 				A3C2C1352E66A836005A322F /* DashboardView.swift in Sources */,
+				A3C7162C2E69E5F70090D689 /* TimeEditSheet.swift in Sources */,
+				A3C7162D2E69E5F70090D689 /* TimeParser.swift in Sources */,
 				A35075B02E52385200D2367C /* VoiceLog.swift in Sources */,
 				A35075B12E52385200D2367C /* VoiceLogRow.swift in Sources */,
 				A35075B22E52385200D2367C /* VoiceLogsView.swift in Sources */,
@@ -267,6 +301,12 @@
 				A3655F872E68859500579475 /* UnifiedActivityRow.swift in Sources */,
 				A3655F882E68859500579475 /* UnifiedActivityViewModel.swift in Sources */,
 				A3655F892E68859500579475 /* AsyncTaskManager.swift in Sources */,
+				4029890D10087370D98FB69C /* AboutView.swift in Sources */,
+				6462F692FDFF9E541749BA01 /* DataBackupManager.swift in Sources */,
+				6A00DF91C6691890CEC9B48E /* DisclaimerView.swift in Sources */,
+				94F2E384B0C315355700530D /* ExpandableVoiceNavbar.swift in Sources */,
+				9950EC605422ADD814B6BEDC /* LiquidGlassHelpers.swift in Sources */,
+				4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +348,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = F5DJWB4CCV;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -331,6 +372,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -371,6 +413,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = F5DJWB4CCV;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -387,6 +430,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -401,7 +445,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"HydrationReminder/Preview Content\"";
-				DEVELOPMENT_TEAM = DV5GMRMSLK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HydrationReminder/Info.plist;
@@ -415,7 +458,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.different.healthreminder;
+				PRODUCT_BUNDLE_IDENTIFIER = com.different.corgina;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -432,7 +475,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"HydrationReminder/Preview Content\"";
-				DEVELOPMENT_TEAM = F5DJWB4CCV;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HydrationReminder/Info.plist;
@@ -446,7 +488,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.hydrationreminder.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.benjaminshafii.corgina;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

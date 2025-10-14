@@ -75,7 +75,7 @@ class UnifiedActivityViewModel: ObservableObject {
     
     init(logsManager: LogsManager,
          photoFoodLogManager: PhotoFoodLogManager = PhotoFoodLogManager(),
-         voiceLogManager: VoiceLogManager = VoiceLogManager(),
+         voiceLogManager: VoiceLogManager = VoiceLogManager.shared,
          supplementManager: SupplementManager) {
         self.logsManager = logsManager
         self.photoFoodLogManager = photoFoodLogManager
@@ -281,6 +281,8 @@ class UnifiedActivityViewModel: ObservableObject {
             return .hydration
         case .symptom, .puke:
             return .symptoms
+        case .supplement:
+            return .supplements
         }
     }
     

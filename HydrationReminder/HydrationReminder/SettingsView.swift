@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showingRestoreConfirmation = false
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
+    @State private var hasUnsavedChanges = false
     @AppStorage("openAIKey") private var savedAPIKey: String = ""
     @Environment(\.dismiss) var dismiss
     
@@ -25,8 +26,19 @@ struct SettingsView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ScrollView {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                LinearGradient(
+                    colors: [
+                        Color.gray.opacity(0.1),
+                        Color(.systemGroupedBackground)
+                    ],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
                 VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("AI Food Analysis")
@@ -45,11 +57,17 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .autocapitalization(.none)
                                     .disableAutocorrection(true)
+                                    .onChange(of: apiKeyInput) { _, newValue in
+                                        hasUnsavedChanges = newValue != savedAPIKey
+                                    }
                             } else {
                                 SecureField("Enter OpenAI API Key", text: $apiKeyInput)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .autocapitalization(.none)
                                     .disableAutocorrection(true)
+                                    .onChange(of: apiKeyInput) { _, newValue in
+                                        hasUnsavedChanges = newValue != savedAPIKey
+                                    }
                             }
                             
                             Button(action: {
@@ -85,10 +103,9 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(6)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
                             .disabled(apiKeyInput.isEmpty)
                         }
                         
@@ -99,8 +116,8 @@ struct SettingsView: View {
                     .padding(.horizontal)
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Test Notifications")
@@ -133,11 +150,10 @@ struct SettingsView: View {
                                 Text("Test Eating")
                             }
                             .frame(maxWidth: .infinity)
-                            .foregroundColor(.white)
                             .padding(.vertical, 12)
-                            .background(Color.orange)
-                            .cornerRadius(10)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
                         
                         Button(action: {
                             notificationManager.checkPermissionAndSendTest(type: "water") { status in
@@ -159,17 +175,16 @@ struct SettingsView: View {
                                 Text("Test Water")
                             }
                             .frame(maxWidth: .infinity)
-                            .foregroundColor(.white)
                             .padding(.vertical, 12)
-                            .background(Color.blue)
-                            .cornerRadius(10)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
                     }
                     .padding(.horizontal)
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Quiet Hours")
@@ -222,8 +237,8 @@ struct SettingsView: View {
                         .padding(.horizontal)
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("iCloud Backup")
@@ -237,7 +252,7 @@ struct SettingsView: View {
                     
                     Toggle("Enable iCloud Backup", isOn: $cloudBackupManager.isBackupEnabled)
                         .padding(.horizontal)
-                        .onChange(of: cloudBackupManager.isBackupEnabled) { newValue in
+                        .onChange(of: cloudBackupManager.isBackupEnabled) { oldValue, newValue in
                             cloudBackupManager.enableBackup(newValue)
                         }
                     
@@ -264,10 +279,9 @@ struct SettingsView: View {
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
                                 }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
                                 .disabled(cloudBackupManager.backupStatus == .backing)
                                 
                                 Button(action: {
@@ -284,10 +298,9 @@ struct SettingsView: View {
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
-                                    .background(Color.green)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
                                 }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
                                 .disabled(cloudBackupManager.backupStatus == .restoring)
                             }
                             
@@ -320,15 +333,14 @@ struct SettingsView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(Color.purple)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
                     .padding(.horizontal)
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 .confirmationDialog("Restore from iCloud", isPresented: $showingRestoreConfirmation) {
                     Button("Restore", role: .destructive) {
                         Task {
@@ -370,11 +382,10 @@ struct SettingsView: View {
                             Text("Reset for New Day")
                         }
                         .frame(maxWidth: .infinity)
-                        .foregroundColor(.white)
                         .padding()
-                        .background(Color.indigo)
-                        .cornerRadius(10)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.indigo)
                     .padding(.horizontal)
                     .confirmationDialog("Reset Daily Logs", isPresented: $showingResetConfirmation) {
                         Button("Reset All Logs", role: .destructive) {
@@ -388,8 +399,8 @@ struct SettingsView: View {
                     }
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Troubleshooting")
@@ -410,8 +421,8 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                 }
                 .padding(.vertical)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(15)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 
                 Button(action: {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -423,25 +434,37 @@ struct SettingsView: View {
                         Text("Open App Settings")
                     }
                     .frame(maxWidth: .infinity)
-                    .foregroundColor(.white)
                     .padding()
-                    .background(Color.gray)
-                    .cornerRadius(10)
                 }
+                .buttonStyle(.bordered)
+                .tint(.gray)
                 
                     Spacer()
                 }
                 .padding()
             }
+            
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Back") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        if hasUnsavedChanges && !apiKeyInput.isEmpty {
+                            openAIManager.setAPIKey(apiKeyInput)
+                        }
                         dismiss()
                     }
                 }
             }
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .alert("Settings", isPresented: $showingAlert) {
                 Button("OK", role: .cancel) { }
             } message: {

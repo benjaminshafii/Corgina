@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct VoiceLogsView: View {
-    @StateObject private var voiceLogManager = VoiceLogManager()
+    @StateObject private var voiceLogManager = VoiceLogManager.shared
     @EnvironmentObject var logsManager: LogsManager
     @EnvironmentObject var supplementManager: SupplementManager
     @State private var selectedFilter: LogCategory? = nil
@@ -67,14 +67,8 @@ struct VoiceLogsView: View {
             }
             .padding(.horizontal)
             
-            // Record Button and Timer
+            // Record Button
             HStack(spacing: 30) {
-                // Timer Display
-                Text(formatTime(voiceLogManager.recordingTime))
-                    .font(.system(size: 24, weight: .medium, design: .monospaced))
-                    .foregroundColor(voiceLogManager.isRecording ? .red : .secondary)
-                    .frame(width: 100)
-                
                 // Record Button
                 Button(action: toggleRecording) {
                     ZStack {
@@ -95,32 +89,7 @@ struct VoiceLogsView: View {
                     .frame(width: 100)
             }
             
-            // Processing Indicator
-            if voiceLogManager.isProcessingVoice {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Processing...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            // Transcription Display
-            if let transcription = voiceLogManager.lastTranscription {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Transcription:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(transcription)
-                        .font(.subheadline)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                }
-                .padding(.horizontal)
-            }
+
         }
         .padding(.vertical)
         .background(Color(UIColor.systemBackground))
@@ -217,7 +186,7 @@ struct VoiceLogsView: View {
     }
     
     private func checkMicrophonePermission() {
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+        AVAudioApplication.requestRecordPermission { granted in
             DispatchQueue.main.async {
                 if !granted {
                     microphonePermissionDenied = true
@@ -240,12 +209,6 @@ struct VoiceLogsView: View {
         }
     }
     
-    private func formatTime(_ timeInterval: TimeInterval) -> String {
-        let minutes = Int(timeInterval) / 60
-        let seconds = Int(timeInterval) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-    
     private func getCategoryColor(_ category: LogCategory) -> Color {
         switch category {
         case .food:
@@ -257,6 +220,77 @@ struct VoiceLogsView: View {
         case .symptoms:
             return .purple
         }
+    }
+    
+    private func actionRecognitionColor() -> Color {
+        switch voiceLogManager.actionRecognitionState {
+        case .idle:
+            return .gray
+        case .recognizing:
+            return .orange
+        case .executing:
+            return .blue
+        case .completed:
+            return .green
+        }
+    }
+    
+    private func getActionSummary(_ action: VoiceAction) -> String {
+        var summary = ""
+        
+        switch action.type {
+        case .logFood:
+            summary = "Added \(action.details.item ?? "food")"
+            if let mealType = action.details.mealType {
+                summary += " for \(mealType)"
+            }
+        case .logWater:
+            if let amount = action.details.amount, let unit = action.details.unit {
+                summary = "Logged \(amount) \(unit) of water"
+            } else {
+                summary = "Logged water"
+            }
+        case .logVitamin:
+            summary = "Took \(action.details.vitaminName ?? action.details.item ?? "supplement")"
+        case .logSymptom:
+            if let symptoms = action.details.symptoms {
+                summary = "Logged: \(symptoms.joined(separator: ", "))"
+            } else {
+                summary = "Logged symptoms"
+            }
+        case .logPUQE:
+            summary = "Updated PUQE score"
+        case .unknown:
+            summary = "Unknown action"
+        }
+        
+        // Add time if parsed and different from current
+        if let timestampString = action.details.timestamp {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            if let parsedDate = formatter.date(from: timestampString) ?? {
+                formatter.formatOptions = [.withInternetDateTime]
+                return formatter.date(from: timestampString)
+            }() {
+                // If time is more than 5 minutes different from now, show it
+                if abs(parsedDate.timeIntervalSinceNow) > 300 {
+                    let timeFormatter = DateFormatter()
+                    if Calendar.current.isDateInToday(parsedDate) {
+                        timeFormatter.dateFormat = "h:mm a"
+                        summary += " at \(timeFormatter.string(from: parsedDate))"
+                    } else if Calendar.current.isDateInYesterday(parsedDate) {
+                        timeFormatter.dateFormat = "h:mm a"
+                        summary += " yesterday at \(timeFormatter.string(from: parsedDate))"
+                    } else {
+                        timeFormatter.dateFormat = "MMM d, h:mm a"
+                        summary += " on \(timeFormatter.string(from: parsedDate))"
+                    }
+                }
+            }
+        }
+        
+        return summary
     }
 }
 

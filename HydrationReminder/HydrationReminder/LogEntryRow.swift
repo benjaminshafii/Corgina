@@ -4,21 +4,40 @@ struct LogEntryRow: View {
     let entry: LogEntry
     let showRelated: Bool
     let relatedLogs: [LogEntry]
+    let logsManager: LogsManager?
+    @State private var showingTimeEdit = false
+    @State private var editableDate: Date
     
-    init(entry: LogEntry, showRelated: Bool = true, relatedLogs: [LogEntry] = []) {
+    init(entry: LogEntry, showRelated: Bool = true, relatedLogs: [LogEntry] = [], logsManager: LogsManager? = nil) {
         self.entry = entry
         self.showRelated = showRelated
         self.relatedLogs = relatedLogs
+        self.logsManager = logsManager
+        self._editableDate = State(initialValue: entry.date)
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                // Time
-                Text(entry.formattedDate)
+                // Time (tap to edit)
+                Button(action: {
+                    editableDate = entry.date
+                    showingTimeEdit = true
+                }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                        Text(entry.formattedDate)
+                    }
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .frame(width: 55, alignment: .trailing)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .frame(width: 75, alignment: .trailing)
                 
                 // Icon
                 Image(systemName: entry.type.icon)
@@ -129,12 +148,21 @@ struct LogEntryRow: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.leading, 92)
+                        .padding(.leading, 107)
                     }
                 }
             }
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showingTimeEdit) {
+            TimeEditSheet(date: $editableDate)
+                .onDisappear {
+                    // Update the log when sheet is dismissed
+                    if editableDate != entry.date, let logsManager = logsManager {
+                        logsManager.updateLogTime(entry, newDate: editableDate)
+                    }
+                }
+        }
     }
     
     private func severityColor(_ severity: Int) -> Color {

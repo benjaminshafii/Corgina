@@ -1,4 +1,4 @@
-# Corgina - AI-Native Pregnancy Health Tracker
+# Corgina - Open Source Food and Symptoms Tracker
 
 An AI-powered iOS app for tracking pregnancy health, nutrition, and symptoms with privacy-first, on-device data storage.
 

@@ -4,21 +4,20 @@ struct TimeEditSheet: View {
     @Binding var date: Date
     @Environment(\.dismiss) var dismiss
     @State private var tempDate: Date
-    
+    @State private var showCustomPicker = false
+
     let quickPresets: [(String, TimeInterval)] = [
         ("Now", 0),
         ("15 min ago", -900),
         ("30 min ago", -1800),
-        ("1 hour ago", -3600),
-        ("2 hours ago", -7200),
-        ("3 hours ago", -10800)
+        ("1 hour ago", -3600)
     ]
-    
+
     init(date: Binding<Date>) {
         self._date = date
         self._tempDate = State(initialValue: date.wrappedValue)
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Handle bar
@@ -27,7 +26,7 @@ struct TimeEditSheet: View {
                 .frame(width: 40, height: 5)
                 .padding(.top, 8)
                 .padding(.bottom, 20)
-            
+
             // Title
             HStack {
                 Text("Edit Time")
@@ -42,53 +41,71 @@ struct TimeEditSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
-            
-            // Quick Presets
-            VStack(alignment: .leading, spacing: 8) {
+
+            // Quick Presets - iOS 26 Liquid Glass Pills
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Quick Select")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 20)
-                
+
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 12) {
                         ForEach(quickPresets, id: \.0) { preset in
-                            QuickTimeButton(
+                            LiquidGlassTimeButton(
                                 title: preset.0,
+                                isSelected: false,
                                 action: {
                                     tempDate = Date().addingTimeInterval(preset.1)
                                     hapticFeedback()
                                 }
                             )
                         }
+
+                        // Custom button
+                        LiquidGlassTimeButton(
+                            title: "Custom",
+                            isSelected: showCustomPicker,
+                            action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    showCustomPicker.toggle()
+                                }
+                                hapticFeedback()
+                            }
+                        )
                     }
                     .padding(.horizontal, 20)
                 }
             }
             .padding(.bottom, 20)
-            
-            Divider()
-                .padding(.horizontal, 20)
-            
-            // Custom Time Picker
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Custom Time")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+
+            // Compact DatePicker (iOS 26 style - only shows when Custom is selected)
+            if showCustomPicker {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+                        .padding(.horizontal, 20)
+
+                    Text("Custom Time")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+
+                    DatePicker(
+                        "Select time",
+                        selection: $tempDate,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                
-                DatePicker(
-                    "Time",
-                    selection: $tempDate,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                .datePickerStyle(WheelDatePickerStyle())
-                .labelsHidden()
-                .padding(.horizontal, 10)
-                .onChange(of: tempDate) {
-                    hapticFeedback()
+                    .onChange(of: tempDate) {
+                        hapticFeedback()
+                    }
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
             // Preview
@@ -148,20 +165,39 @@ struct TimeEditSheet: View {
     }
 }
 
-struct QuickTimeButton: View {
+// iOS 26 Liquid Glass Time Button
+struct LiquidGlassTimeButton: View {
     let title: String
+    let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline)
-                .fontWeight(.medium)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.blue.opacity(0.1))
-                .foregroundColor(.blue)
-                .cornerRadius(20)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .shadow(color: isSelected ? Color.blue.opacity(0.3) : Color.black.opacity(0.05), radius: isSelected ? 8 : 4, y: 2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: isSelected ?
+                                    [Color.blue.opacity(0.8), Color.blue.opacity(0.4)] :
+                                    [Color.gray.opacity(0.2), Color.gray.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+                .foregroundColor(isSelected ? .blue : .primary)
         }
+        .buttonStyle(.plain)
     }
 }

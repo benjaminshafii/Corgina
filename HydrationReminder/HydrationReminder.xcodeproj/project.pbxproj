@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01CB1911714075CBEDA8FACF /* WeeklyCalorieTrackerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */; };
+		1EBA44CDC3BE62E6C518378F /* VoiceCompactPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95000950D844429ABA5DA3C /* VoiceCompactPill.swift */; };
 		34921AF2B6EA6AE1B7A47153 /* DailyCalorieTrackerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0072206FB3C03B03A085A2 /* DailyCalorieTrackerCard.swift */; };
 		4029890D10087370D98FB69C /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB767F1E6B37F669A8EA966F /* AboutView.swift */; };
 		4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */; };
@@ -96,6 +97,7 @@
 		A3C716272E69E5F70090D689 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A3C716292E69E5F70090D689 /* TimeEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEditSheet.swift; sourceTree = "<group>"; };
 		A3C7162A2E69E5F70090D689 /* TimeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeParser.swift; sourceTree = "<group>"; };
+		A95000950D844429ABA5DA3C /* VoiceCompactPill.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceCompactPill.swift; sourceTree = "<group>"; };
 		AE4D313CC74F3837C2B57863 /* DataBackupManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DataBackupManager.swift; sourceTree = "<group>"; };
 		B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCalorieTrackerCard.swift; sourceTree = "<group>"; };
 		EB767F1E6B37F669A8EA966F /* AboutView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
@@ -179,6 +181,7 @@
 				16476A2D9478E6461962D567 /* OnDeviceSpeechManager.swift */,
 				0C0072206FB3C03B03A085A2 /* DailyCalorieTrackerCard.swift */,
 				B7261D3FEDF8D95BCDC9E249 /* WeeklyCalorieTrackerCard.swift */,
+				A95000950D844429ABA5DA3C /* VoiceCompactPill.swift */,
 			);
 			path = HydrationReminder;
 			sourceTree = "<group>";
@@ -320,6 +323,7 @@
 				4518EB2B2A56884550794C75 /* OnDeviceSpeechManager.swift in Sources */,
 				34921AF2B6EA6AE1B7A47153 /* DailyCalorieTrackerCard.swift in Sources */,
 				01CB1911714075CBEDA8FACF /* WeeklyCalorieTrackerCard.swift in Sources */,
+				1EBA44CDC3BE62E6C518378F /* VoiceCompactPill.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

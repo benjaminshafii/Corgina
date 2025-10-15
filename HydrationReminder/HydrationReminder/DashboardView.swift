@@ -225,24 +225,6 @@ struct DashboardView: View {
                     .fontWeight(.bold)
             }
         }
-        
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingPhotoOptions = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-            }
-        }
-        
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                // Navigate to calendar/schedule
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.title3)
-            }
-        }
     }
     
     private var mainContentView: some View {
@@ -767,11 +749,36 @@ struct DashboardView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(logsManager.getTodayLogs().prefix(5)) { log in
+                List {
+                    ForEach(Array(logsManager.getTodayLogs().prefix(5))) { log in
                         LogEntryRow(entry: log, showRelated: false, logsManager: logsManager)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    withAnimation {
+                                        logsManager.deleteLog(log)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    withAnimation {
+                                        logsManager.deleteLog(log)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                     }
                 }
+                .listStyle(.plain)
+                .frame(height: CGFloat(min(logsManager.getTodayLogs().prefix(5).count, 5)) * 80)
+                .scrollDisabled(true)
+                .background(Color(.systemBackground))
+                .cornerRadius(12)
             }
         }
     }

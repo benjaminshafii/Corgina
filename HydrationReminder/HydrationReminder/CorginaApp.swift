@@ -46,23 +46,14 @@ struct CorginaApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let notificationManager = NotificationManager()
-    let logsManager = LogsManager(notificationManager: NotificationManager())
     let openAIManager = OpenAIManager.shared
-    
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        
-        // Configure AsyncTaskManager
-        Task {
-            await AsyncTaskManager.configure(
-                logsManager: logsManager,
-                openAIManager: openAIManager
-            )
-            
-            // Process any pending tasks from previous sessions
-            await AsyncTaskManager.processPending()
-        }
-        
+
+        // Don't configure AsyncTaskManager here - it's already configured in CorginaApp.init()
+        // with the correct LogsManager instance that the UI observes
+
         return true
     }
     

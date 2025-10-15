@@ -533,63 +533,25 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
         print("🍔 Timestamp: \(Date())")
 
         let systemPrompt = """
-        You are a precise nutrition calculator using USDA database standards.
+        You are a precise nutrition calculator. Use your knowledge of USDA nutritional data to estimate food macros.
 
-        CHAIN-OF-THOUGHT REASONING PROCESS:
-        1. PARSE: Identify the food item(s) and quantity
-        2. RECALL: Retrieve USDA standard values for each component
-        3. CALCULATE: Apply quantity multipliers and size adjustments
-        4. VERIFY: Check if calorie math matches macros (protein×4 + carbs×4 + fat×9)
-        5. OUTPUT: Return final values
+        PROCESS:
+        1. Identify the food item(s) and any specified quantity
+        2. Use standard USDA portion sizes (e.g., 1 medium banana, 1 cup rice, 1 chicken breast)
+        3. If a quantity is specified (e.g., "3 bananas", "2 cups rice"), multiply accordingly
+        4. For compound meals (e.g., "chicken with rice"), sum all components
+        5. Verify calorie math: (protein×4) + (carbs×4) + (fat×9) ≈ total calories
 
-        CRITICAL RULES:
-        1. If a QUANTITY is specified (e.g., "3 bananas", "2 slices pizza"), calculate the TOTAL nutrition for that exact quantity
-        2. If quantity is a NUMBER (3, 2, 4, etc.), multiply the standard portion by that number
-        3. For COMPOUND MEALS with multiple components, sum all components together
+        RULES:
+        - Use realistic standard portions (medium size if not specified)
+        - Round calories to nearest 5, macros to nearest whole number
+        - For unknown foods, make reasonable estimates based on similar items
+        - NEVER return zero values - always provide a nutritional estimate
 
-        USDA REFERENCE VALUES:
-        - 1 medium banana (118g) = 105 cal, 27g carbs, 1.3g protein, 0.4g fat
-        - 1 medium apple (182g) = 95 cal, 25g carbs, 0.5g protein, 0.3g fat
-        - 1 slice pizza (cheese, 107g) = 285 cal, 36g carbs, 12g protein, 10g fat
-        - 1 large egg (50g) = 70 cal, 0.4g carbs, 6g protein, 5g fat
-        - 1 cup white rice cooked (158g) = 205 cal, 45g carbs, 4g protein, 0.4g fat
-        - 1 medium porkchop (85g) = 220 cal, 0g carbs, 26g protein, 12g fat
-        - 1 cup mashed potatoes (210g) = 210 cal, 37g carbs, 4g protein, 6g fat
-        - 1 chicken breast (172g) = 284 cal, 0g carbs, 53g protein, 6g fat
-        - 1 cup cooked broccoli (156g) = 55 cal, 11g carbs, 4g protein, 0.6g fat
-
-        SIZE MODIFIERS:
-        - Small = 0.75x standard
-        - Medium = 1.0x standard (default if not specified)
-        - Large = 1.3x standard
-        - Handful = ~30g for nuts/berries
-
-        ROUNDING:
-        - Calories: nearest 5
-        - Macros: nearest whole number
-
-        EXAMPLES WITH REASONING:
-
-        Example 1: "3 bananas"
-        REASONING: 1 banana = 105 cal → 3 × 105 = 315 cal
-        OUTPUT: 315 calories, 81g carbs, 4g protein, 1g fat
-
-        Example 2: "porkchop with potatoes"
-        REASONING:
-        - 1 porkchop = 220 cal, 0g carbs, 26g protein, 12g fat
-        - 1 cup potatoes = 210 cal, 37g carbs, 4g protein, 6g fat
-        - TOTAL = 430 cal, 37g carbs, 30g protein, 18g fat
-        VERIFY: (30×4) + (37×4) + (18×9) = 120 + 148 + 162 = 430 ✓
-        OUTPUT: 430 calories, 37g carbs, 30g protein, 18g fat
-
-        Example 3: "chicken with broccoli and rice"
-        REASONING:
-        - 1 chicken breast = 284 cal, 0g carbs, 53g protein, 6g fat
-        - 1 cup broccoli = 55 cal, 11g carbs, 4g protein, 0.6g fat
-        - 1 cup rice = 205 cal, 45g carbs, 4g protein, 0.4g fat
-        - TOTAL = 544 cal, 56g carbs, 61g protein, 7g fat
-        VERIFY: (61×4) + (56×4) + (7×9) = 244 + 224 + 63 = 531 ≈ 544 ✓ (within 15 cal)
-        OUTPUT: 545 calories, 56g carbs, 61g protein, 7g fat
+        EXAMPLES:
+        "3 bananas" → 315 cal, 81g carbs, 4g protein, 1g fat
+        "porkchop with potatoes" → 430 cal, 37g carbs, 30g protein, 18g fat
+        "corn" → 130 cal, 27g carbs, 5g protein, 2g fat (1 cup cooked)
         """
 
         let messages = [
@@ -598,7 +560,7 @@ class OpenAIManager: ObservableObject, @unchecked Sendable {
         ]
 
         print("🍔 System Prompt Length: \(systemPrompt.count) characters")
-        if let userMessage = messages[1]["content"] as? String {
+        if let userMessage = messages[1]["content"] {
             print("🍔 User Message: '\(userMessage)'")
         }
 

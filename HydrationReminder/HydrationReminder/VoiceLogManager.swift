@@ -241,27 +241,27 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 print("🎤 ✅ Voice log created and saved")
 
                 print("🎤🎤🎤 ============================================")
-                print("🎤🎤🎤 STEP 10: Starting OpenAI processing...")
+                print("🎤🎤🎤 STEP 10: Using on-device transcription (skipping Whisper)...")
                 print("🎤🎤🎤 ============================================")
 
-                // Process with OpenAI
-                self.processRecordedAudio(at: url, for: voiceLog)
-                print("🎤 ✅ processRecordedAudio() called (async processing started)")
+                // Use on-device transcription directly (skip Whisper API call)
+                self.processOnDeviceTranscription(result.transcript, for: voiceLog)
+                print("🎤 ✅ processOnDeviceTranscription() called (async processing started)")
             }
         }
     }
     
-    private func processRecordedAudio(at url: URL, for log: VoiceLog) {
+    private func processOnDeviceTranscription(_ transcription: String, for log: VoiceLog) {
         print("🔄🔄🔄 ============================================")
-        print("🔄🔄🔄 processRecordedAudio STARTED")
-        print("🔄🔄🔄 URL: \(url.path)")
+        print("🔄🔄🔄 processOnDeviceTranscription STARTED")
+        print("🔄🔄🔄 Transcription: '\(transcription)'")
         print("🔄🔄🔄 ============================================")
 
         processingTimeoutTask?.cancel()
 
-        print("🔄 Setting up 30-second timeout task...")
+        print("🔄 Setting up 20-second timeout task...")
         processingTimeoutTask = Task {
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
             await MainActor.run {
                 if self.actionRecognitionState != .completed && self.actionRecognitionState != .idle {
                     print("⚠️⚠️⚠️ Processing timeout - resetting to idle")
@@ -291,29 +291,19 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 }
                 print("📍 ✅ State confirmed as .recognizing in async task")
 
-                print("📍📍📍 Step 2: Loading audio data from file")
-                print("📍 File path: \(url.path)")
-                print("📍 File exists: \(FileManager.default.fileExists(atPath: url.path))")
+                print("📍📍📍 Step 2: SKIPPED - Using on-device transcription directly")
+                print("📍 On-device transcription: '\(transcription)'")
+                print("✅✅✅ Skipped Whisper API call (800-1500ms saved!)")
 
-                let audioData = try Data(contentsOf: url)
-                print("✅✅✅ Audio data loaded: \(audioData.count) bytes")
-
-                print("📍📍📍 Step 3: Calling OpenAI transcription API")
-                print("📍 Starting API call with 15 second timeout...")
-                let transcription = try await self.withTimeout(seconds: 15) {
-                    try await OpenAIManager.shared.transcribeAudio(audioData: audioData)
-                }
-                print("✅✅✅ Transcription received: '\(transcription.text)'")
-
-                print("📍📍📍 Step 3b: Saving transcription to state")
+                print("📍📍📍 Step 3: Saving transcription to state")
                 await MainActor.run {
-                    print("📍 Saving lastTranscription: '\(transcription.text)'")
-                    self.lastTranscription = transcription.text
-                    self.refinedTranscription = transcription.text
+                    print("📍 Saving lastTranscription: '\(transcription)'")
+                    self.lastTranscription = transcription
+                    self.refinedTranscription = transcription
 
                     if let index = self.voiceLogs.firstIndex(where: { $0.id == log.id }) {
                         print("📍 Found voice log at index \(index), updating transcription")
-                        self.voiceLogs[index].transcription = transcription.text
+                        self.voiceLogs[index].transcription = transcription
                         self.saveLogs()
                         print("📍 Voice log saved")
                     } else {
@@ -322,15 +312,15 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
                 }
                 print("✅✅✅ Transcription saved to state")
 
-                print("⏳⏳⏳ Waiting 1.5s before action extraction...")
-                try await Task.sleep(nanoseconds: 1_500_000_000)
+                print("⏳⏳⏳ Waiting 0.5s before action extraction...")
+                try await Task.sleep(nanoseconds: 500_000_000)
                 print("✅ Wait complete")
 
                 print("📍📍📍 Step 4: Extracting actions from transcription")
-                print("📍 Transcription text: '\(transcription.text)'")
+                print("📍 Transcription text: '\(transcription)'")
                 print("📍 Starting action extraction API call with 15 second timeout...")
                 let actions = try await self.withTimeout(seconds: 15) {
-                    try await OpenAIManager.shared.extractVoiceActions(from: transcription.text)
+                    try await OpenAIManager.shared.extractVoiceActions(from: transcription)
                 }
                 print("✅✅✅ Actions extracted: \(actions.count) actions")
 
@@ -483,9 +473,47 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func parseTimestamp(_ timestampString: String?) -> Date {
+    private func parseTimestamp(_ timestampString: String?, mealType: String?) -> Date {
+        // First, try meal type mapping if provided
+        if let meal = mealType?.lowercased() {
+            let calendar = Calendar.current
+            let now = Date()
+
+            let targetHour: Int
+            switch meal {
+            case "breakfast":
+                targetHour = 8  // 8:00 AM
+                print("⏰ Detected breakfast → mapping to 8:00 AM")
+            case "lunch":
+                targetHour = 12  // 12:00 PM
+                print("⏰ Detected lunch → mapping to 12:00 PM")
+            case "dinner":
+                targetHour = 18  // 6:00 PM
+                print("⏰ Detected dinner → mapping to 6:00 PM")
+            case "snack":
+                // For snacks, check time of day and use nearest meal time
+                let currentHour = calendar.component(.hour, from: now)
+                if currentHour < 10 {
+                    targetHour = 10  // Mid-morning snack
+                } else if currentHour < 15 {
+                    targetHour = 15  // Afternoon snack
+                } else {
+                    targetHour = 20  // Evening snack
+                }
+                print("⏰ Detected snack → mapping to \(targetHour):00")
+            default:
+                targetHour = calendar.component(.hour, from: now)
+            }
+
+            if let mealDate = calendar.date(bySettingHour: targetHour, minute: 0, second: 0, of: now) {
+                print("⏰ ✅ Successfully mapped meal type '\(meal)' to \(mealDate)")
+                return mealDate
+            }
+        }
+
+        // If no meal type or meal type mapping failed, try parsing timestamp
         guard let timestampString = timestampString else {
-            print("⏰ No timestamp provided, using current date")
+            print("⏰ No timestamp or meal type provided, using current date")
             return Date()
         }
 
@@ -511,8 +539,8 @@ class VoiceLogManager: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func executeAction(_ action: VoiceAction, logsManager: LogsManager) throws {
-        // Parse timestamp once for all action types
-        let logDate = parseTimestamp(action.details.timestamp)
+        // Parse timestamp with meal type support
+        let logDate = parseTimestamp(action.details.timestamp, mealType: action.details.mealType)
         print("⏰ Using date for log: \(logDate)")
 
         switch action.type {

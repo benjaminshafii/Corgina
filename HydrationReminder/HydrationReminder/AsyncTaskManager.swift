@@ -117,8 +117,11 @@ actor AsyncTaskManager {
     
     // MARK: - Task Processing
     private func processFoodMacros(_ task: AsyncTask) async {
+        print("🍔🍔🍔 ============================================")
+        print("🍔🍔🍔 processFoodMacros STARTED")
+        print("🍔🍔🍔 ============================================")
         print("🍔 Processing food macros task for: \(task.data)")
-        
+
         guard let foodName = task.data["foodName"],
               let logId = task.data["logId"],
               let logUUID = UUID(uuidString: logId) else {
@@ -126,51 +129,36 @@ actor AsyncTaskManager {
             await handleTaskFailure(task, error: TaskError.invalidData)
             return
         }
-        
-        print("🍔 Food: \(foodName), LogID: \(logId)")
-        
+
+        print("🍔 Food: \(foodName), LogID: \(logUUID)")
+
         guard let openAI = openAIManager else {
             print("❌ OpenAIManager not configured!")
             await handleTaskFailure(task, error: TaskError.managerNotConfigured)
             return
         }
-        
+
+        guard let logsManager = logsManager else {
+            print("❌ LogsManager not configured!")
+            await handleTaskFailure(task, error: TaskError.managerNotConfigured)
+            return
+        }
+
         do {
-            print("🍔 Fetching macros from OpenAI for: \(foodName)")
-            // Fetch macros from OpenAI
+            print("🍔 Step 1: Fetching macros from OpenAI for: '\(foodName)'")
+            // Fetch macros from OpenAI (this is the slow part - 2-3 seconds)
             let macros = try await openAI.estimateFoodMacros(foodName: foodName)
-            print("🍔 Received macros: calories=\(macros.calories), protein=\(macros.protein), carbs=\(macros.carbs), fat=\(macros.fat)")
-            
-            // Update the log entry
-            let capturedLogsManager = logsManager
-            await MainActor.run {
-                guard let logsManager = capturedLogsManager else {
-                    print("❌ LogsManager is nil when trying to update!")
-                    return
-                }
-                
-                print("🍔 Looking for log entry with ID: \(logUUID)")
-                print("🍔 Current log count: \(logsManager.logEntries.count)")
-                
-                // Find and update the log entry
-                if let index = logsManager.logEntries.firstIndex(where: { $0.id == logUUID }) {
-                    print("🍔 Found log entry at index \(index), updating...")
-                    logsManager.logEntries[index].calories = macros.calories
-                    logsManager.logEntries[index].protein = macros.protein
-                    logsManager.logEntries[index].carbs = macros.carbs
-                    logsManager.logEntries[index].fat = macros.fat
-                    logsManager.logEntries[index].notes = "Via voice command"
-                    
-                    // Save and notify
-                    logsManager.saveLogs()
-                    logsManager.objectWillChange.send()
-                    print("✅ Log entry updated successfully!")
-                } else {
-                    print("❌ Could not find log entry with ID: \(logUUID)")
-                    print("❌ Available IDs: \(logsManager.logEntries.map { $0.id })")
-                }
-            }
-            
+            print("🍔 ✅ Received macros from OpenAI:")
+            print("🍔    calories=\(macros.calories)")
+            print("🍔    protein=\(macros.protein)g")
+            print("🍔    carbs=\(macros.carbs)g")
+            print("🍔    fat=\(macros.fat)g")
+
+            print("🍔 Step 2: Updating LogEntry on MainActor...")
+            // Update the log entry directly on MainActor to maintain observation chain
+            await updateLogEntryOnMainActor(logsManager: logsManager, logId: logUUID, macros: macros)
+
+            print("🍔 Step 3: Recording task result...")
             let resultData = [
                 "calories": String(macros.calories),
                 "protein": String(macros.protein),
@@ -178,8 +166,44 @@ actor AsyncTaskManager {
                 "fat": String(macros.fat)
             ]
             await updateTaskResult(task.id, result: resultData)
+            print("🍔🍔🍔 ============================================")
+            print("🍔🍔🍔 processFoodMacros COMPLETED SUCCESSFULLY")
+            print("🍔🍔🍔 ============================================")
         } catch {
+            print("❌❌❌ processFoodMacros FAILED: \(error)")
             await handleTaskFailure(task, error: error)
+        }
+    }
+
+    @MainActor
+    private func updateLogEntryOnMainActor(logsManager: LogsManager, logId: UUID, macros: OpenAIManager.FoodMacros) {
+        print("🍔📍 updateLogEntryOnMainActor called on MainActor")
+        print("🍔📍 LogsManager instance: \(ObjectIdentifier(logsManager))")
+        print("🍔📍 Looking for log entry with ID: \(logId)")
+        print("🍔📍 Current log count: \(logsManager.logEntries.count)")
+
+        // Find and update the log entry
+        if let index = logsManager.logEntries.firstIndex(where: { $0.id == logId }) {
+            print("🍔📍 ✅ Found log entry at index \(index)")
+            print("🍔📍 BEFORE update: calories=\(logsManager.logEntries[index].calories ?? 0)")
+
+            logsManager.logEntries[index].calories = macros.calories
+            logsManager.logEntries[index].protein = macros.protein
+            logsManager.logEntries[index].carbs = macros.carbs
+            logsManager.logEntries[index].fat = macros.fat
+            logsManager.logEntries[index].notes = "Via voice command"
+
+            print("🍔📍 AFTER update: calories=\(logsManager.logEntries[index].calories ?? 0)")
+
+            // Save and notify - this should trigger UI update
+            print("🍔📍 Calling saveLogs()...")
+            logsManager.saveLogs()
+            print("🍔📍 Calling objectWillChange.send()...")
+            logsManager.objectWillChange.send()
+            print("🍔📍 ✅✅✅ Log entry updated and UI notified!")
+        } else {
+            print("🍔📍 ❌❌❌ Could not find log entry with ID: \(logId)")
+            print("🍔📍 Available IDs: \(logsManager.logEntries.map { $0.id })")
         }
     }
     

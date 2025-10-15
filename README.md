@@ -4,6 +4,9 @@ An AI-powered iOS app for tracking pregnancy health, nutrition, and symptoms wit
 
 > **⚠️ Note**: Currently only compatible with iOS 26. Requires iPhone running iOS 26.0 or later.
 
+<img width="1206" height="2622" alt="image" src="https://github.com/user-attachments/assets/fc51c423-34a3-4fd1-9658-8d432db6c468" />
+
+
 ## Features
 
 ### 🎤 Voice-First AI Logging

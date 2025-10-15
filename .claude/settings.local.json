@@ -13,7 +13,12 @@
       "WebFetch(domain:www.donnywals.com)",
       "WebFetch(domain:xavier7t.com)",
       "Bash(git log:*)",
-      "Bash(ruby -r 'xcodeproj':*)"
+      "Bash(ruby -r 'xcodeproj':*)",
+      "Bash(ruby:*)",
+      "Bash(killall:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

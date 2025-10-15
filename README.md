@@ -2,6 +2,8 @@
 
 An AI-powered iOS app for tracking pregnancy health, nutrition, and symptoms with privacy-first, on-device data storage.
 
+> **⚠️ Note**: Currently only compatible with iOS 26. Requires iPhone running iOS 26.0 or later.
+
 ## Features
 
 ### 🎤 Voice-First AI Logging
@@ -36,8 +38,9 @@ An AI-powered iOS app for tracking pregnancy health, nutrition, and symptoms wit
 
 ## Requirements
 
-- iOS 26.0 or later
+- **iOS 26.0 or later** (iOS 26 only at the moment)
 - iPhone (tested on iPhone 16 Pro)
+- Xcode 17+ (for building and installation)
 - OpenAI API key (for AI nutrition estimation and voice command processing)
 
 ## Installation
